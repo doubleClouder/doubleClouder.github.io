@@ -15,7 +15,7 @@
 <meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/struct1.png">
 <meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/struct2.png">
 <meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/struct3.png">
-<meta property="og:updated_time" content="2017-07-04T13:34:48.000Z">
+<meta property="og:updated_time" content="2017-07-06T06:24:16.000Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="对象内存布局">
 <meta name="twitter:description" content="关于jvm中对象是如何分配内存的，在jvm源码分析之内存分配中已经做过分析，现在我们就来讨论一下内存分配之后是如何布局的，简单的讲就是分配的内存区域里面到底存的是什么。   上图引用自《java虚拟机精讲》。图中可以一目了然的看出对象的内存布局。存储对象实例信息的内存布局主要有两部分构成：对象头和实例数据以及padding区域。  对象头：分成两部分Mark Word和元数据指针。Mark W">
@@ -121,7 +121,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cj4pm9xax0000v72mq12bmq3n" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cj4w616sa0001bt2mpt124ao4" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/jvm/">jvm</a></li></ul>
@@ -131,6 +131,15 @@
   
     
 <nav id="article-nav">
+  
+    <a href="/2017/07/09/weak-gc/" id="article-nav-newer" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Newer</strong>
+      <div class="article-nav-title">
+        
+          weakHashMap与GC
+        
+      </div>
+    </a>
   
   
     <a href="/2017/07/03/new-object-1/" id="article-nav-older" class="article-nav-link-wrap">
@@ -164,7 +173,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/java/" style="font-size: 10px;">java</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a>
+      <a href="/tags/java/" style="font-size: 20px;">java</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a>
     </div>
   </div>
 
@@ -184,6 +193,10 @@
     <h3 class="widget-title">最新文章</h3>
     <div class="widget">
       <ul>
+        
+          <li>
+            <a href="/2017/07/09/weak-gc/">weakHashMap与GC</a>
+          </li>
         
           <li>
             <a href="/2017/07/04/obejct-struct/">对象内存布局</a>

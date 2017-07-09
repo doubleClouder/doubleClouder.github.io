@@ -3,17 +3,19 @@
 <head>
   <meta charset="utf-8">
   
-  <title>clouder的博客</title>
+  <title>weakHashMap与GC | clouder的博客</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta name="description" content="在学习的道理上不断成长。。">
-<meta property="og:type" content="website">
-<meta property="og:title" content="clouder的博客">
-<meta property="og:url" content="http://yoursite.com/index.html">
+  <meta name="description" content="#简介WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&amp;gt;WeakReference-&amp;gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHash">
+<meta name="keywords" content="java">
+<meta property="og:type" content="article">
+<meta property="og:title" content="weakHashMap与GC">
+<meta property="og:url" content="http://yoursite.com/2017/07/09/weak-gc/index.html">
 <meta property="og:site_name" content="clouder的博客">
-<meta property="og:description" content="在学习的道理上不断成长。。">
+<meta property="og:description" content="#简介WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&amp;gt;WeakReference-&amp;gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHash">
+<meta property="og:updated_time" content="2017-07-09T03:34:36.000Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="clouder的博客">
-<meta name="twitter:description" content="在学习的道理上不断成长。。">
+<meta name="twitter:title" content="weakHashMap与GC">
+<meta name="twitter:description" content="#简介WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&amp;gt;WeakReference-&amp;gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHash">
   
     <link rel="alternate" href="/atom.xml" title="clouder的博客" type="application/atom+xml">
   
@@ -66,9 +68,7 @@
   </div>
 </header>
       <div class="outer">
-        <section id="main">
-  
-    <article id="post-weak-gc" class="article article-type-post" itemscope itemprop="blogPost">
+        <section id="main"><article id="post-weak-gc" class="article article-type-post" itemscope itemprop="blogPost">
   <div class="article-meta">
     <a href="/2017/07/09/weak-gc/" class="article-date">
   <time datetime="2017-07-09T01:54:45.000Z" itemprop="datePublished">2017-07-09</time>
@@ -81,8 +81,8 @@
       <header class="article-header">
         
   
-    <h1 itemprop="name">
-      <a class="article-title" href="/2017/07/09/weak-gc/">weakHashMap与GC</a>
+    <h1 class="article-title" itemprop="name">
+      weakHashMap与GC
     </h1>
   
 
@@ -134,142 +134,19 @@
     </footer>
   </div>
   
-</article>
-
-
+    
+<nav id="article-nav">
   
-    <article id="post-obejct-struct" class="article article-type-post" itemscope itemprop="blogPost">
-  <div class="article-meta">
-    <a href="/2017/07/04/obejct-struct/" class="article-date">
-  <time datetime="2017-07-04T11:49:46.000Z" itemprop="datePublished">2017-07-04</time>
-</a>
-    
-  </div>
-  <div class="article-inner">
-    
-    
-      <header class="article-header">
-        
   
-    <h1 itemprop="name">
-      <a class="article-title" href="/2017/07/04/obejct-struct/">对象内存布局</a>
-    </h1>
+    <a href="/2017/07/04/obejct-struct/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">对象内存布局</div>
+    </a>
   
+</nav>
 
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <p>  关于jvm中对象是如何分配内存的，在<a href="https://doubleclouder.github.io/2017/07/03/new-object-1/" target="_blank" rel="external">jvm源码分析之内存分配</a>中已经做过分析，现在我们就来讨论一下内存分配之后是如何布局的，简单的讲就是分配的内存区域里面到底存的是什么。</p>
-<p> <img src="http://osjt45oaj.bkt.clouddn.com/struct1.png" alt=""><br> 上图引用自《java虚拟机精讲》。图中可以一目了然的看出对象的内存布局。存储对象实例信息的内存布局主要有两部分构成：对象头和实例数据以及padding区域。</p>
-<ul>
-<li>对象头：分成两部分Mark Word和元数据指针。Mark Word主要用于存储对象运行时的数据信息。比如HashCode、GC分代年龄、锁状态标志、线程持有的锁、偏向线程ID、偏向时间戳等。而元数据指针则是指向方法区中目标类的类型信息，通过元数据指针可以指明当年对象是哪个类的实例。</li>
-<li>实例数据：主要用于存储定义在当前对象中的各种类型的字段信息（包括派生于超类的字段）。</li>
-<li>padding区：仅仅起着占位符的作用，jvm要求对象大小必须是8的倍数，若不是需要填充补齐，它不是必要存在的。</li>
-</ul>
-<p>当理解了Java对象在内存中如何存储之后，接下来我们看下jvm中是如何表达java类和对象实例的，底层jvm需要一套完整的内部对象表示机制，这种机制称为OOP-Klass模型，OOP(Ordinay Object Pionter)对象指针用于描述实例对象，而Klass则是用于描述对象实例的类型，对应上层java中的Class(之所以命名为Klass，是因为Class是c++中的关键字)。OOP与Klass是两个相互独立又彼此关联的模块。在JVM中对象头由OOP对象instanceOopDesc来表示，对象头中元数据指针锁指向的当前对象的目标类型是由Klass中的instanceKlass表示。栈中本地变量表中的引用变量指向堆上InstanceOopDesc对象，而instanceOopDesc对象持有只有instanceKlass的地址指针，如下图所示：</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/struct2.png" alt=""><br>下面重点分析一下mark word和实例数据部分。</p>
-<h1 id="Mark-Word"><a href="#Mark-Word" class="headerlink" title="Mark Word"></a>Mark Word</h1><p>-<br>Mark Word具有非固定的数据结构，以便在极小的空间内存储尽量多的信息。JVM可以通过Java对象的元数据确定对象长度，但是对于数组不行。如果对象是一个数组，对象头必须有一块儿用于记录数组长度的数据，这么做的目的是gc扫描时会根据对象头直接确定下一个对象的地址，不需要扫描整个对象空间。对于对象头长度而言，32bit虚拟机一定是32bit+32bit，即8字节；64bit虚拟机若没有开启了压缩指针，是64bit+64bit，即16字节，若开启了压缩指针，是64bit+32bit，即12字节（不是8bit的倍数）<br>-XX:+UseCompressedOops：开启压缩指针。</p>
-<h1 id="实例数据"><a href="#实例数据" class="headerlink" title="实例数据"></a>实例数据</h1><p>-<br>上面讲到实例数据部分存的是对象的各种类型的字段信息，包括基本类型和引用类型。我们在定义一个java类的时候不会去考虑字段的顺序，例如类A</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">public class A&#123;</div><div class="line">   double x;</div><div class="line">   float y;</div><div class="line">   int z;</div><div class="line">   long a;</div><div class="line">   String s;</div><div class="line">   ... </div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>但是jvm在创建对象的时候会按照一定的顺序去排列这些字段，顺序如下：</p>
-<ol>
-<li>double/long       8byte</li>
-<li>float/int         4byte</li>
-<li>short/char        2byte</li>
-<li>byte/boolean      1byte</li>
-<li>oop        4/8byte</li>
-</ol>
-<p>jvm默认以这种顺序去排列字段，这样做的原因是cpu读取内存时是按寄存器的大小单位（64位机器为64bit）载入的，如果载入的数据横跨两个64bit,要操作该数据的话必须两次读取加上组合移位，会产生效率问题，甚至会引发异常，所以必须要求数据对齐,同时也可以节省内存。<br>这种顺序也是可以更改的。通过指定jvm参数-XX:fIeldsAllocationStyle=mode，缺省状态下，jvm默认mode=1,mode还可以为0和2。为0时oop位于前面；mode=2时会将当前类和超类的oop字段放在一起，mode为0或1时会将派生类和超类的基本按照上述规则排在一起，oop类型位置不变，mode=2则也会将oop类型放在一起。按照jvm代码的注释可能更清晰</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">mode=0,Fields order: oops, longs/doubles, ints, shorts/chars, bytes, padded fields</div><div class="line">mode=1:Fields order: longs/doubles, ints, shorts/chars, bytes, oops, padded fields</div><div class="line">mode=2:Fields allocation: oops fields in super and sub classes are together.</div></pre></td></tr></table></figure>
-<p>相当mode=0和1，mode=2的优势是可以减少gc时创建的OopMapBlock对象的数量。OopMapBlock结构如下：<br><img src="http://osjt45oaj.bkt.clouddn.com/struct3.png" alt=""><br>我们都知道gc时需要从gc root对象开始定位所有的存活的对象，那么就需要根据引用链记录对象指针，而OopMapBlock对象就是用来存放对象指针的，它有两个字段offset(偏移量)和对象个数(count),如果oop是连续的，对于同一个对象只需要一个OopMapBlock对象记录oop开始位置的便宜量和oop的个数就ok,否则需要两个oopMapBlock。另外一个好处是连续的对象区域使得cache line的使用效率更高. 试想如果父对象和子对象的对象引用区域不连续, 而中间插入了原始类型字段的话, 那么在做GC对象扫描时, 很可能需要跨cache line读取才能完成扫描.</p>
-
-      
-    </div>
-    <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cj4w616sa0001bt2mpt124ao4" class="article-share-link">Share</a>
-      
-      
-  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/jvm/">jvm</a></li></ul>
-
-    </footer>
-  </div>
   
 </article>
-
-
-  
-    <article id="post-new-object-1" class="article article-type-post" itemscope itemprop="blogPost">
-  <div class="article-meta">
-    <a href="/2017/07/03/new-object-1/" class="article-date">
-  <time datetime="2017-07-03T11:57:46.000Z" itemprop="datePublished">2017-07-03</time>
-</a>
-    
-  </div>
-  <div class="article-inner">
-    
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2017/07/03/new-object-1/">jvm源码分析之内存分配</a>
-    </h1>
-  
-
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="new-Object"><a href="#new-Object" class="headerlink" title="new Object"></a>new Object</h1><p>  java程序猿找不到对象怎么办，最简单的办法:new一个。（扎心了，对象还是要自己找。。）。new关键字大家都很熟悉，我们使用new来实例化任何我们需要的对象。Object object = new Object()一行代码对象创建完成，但是大家是否有了解过这行代码背后都做了些什么？其实底层jvm做了一系列非常复杂的工作，现在我们就来扒一扒。</p>
-<p>  创建一个java对象需要三步：声明引用变量、实例化、初始化对象实例。实例化是真正创建一个java对象，分配内存并返回指向改内存的引用。初始化是指调用构造方法，对类的实例数据赋初值。对于Object object = new Object()可以分成两个部分，”Object obj”这部分的语义作用于Java栈中，会在栈帧中的本地变量表中创建一个引用类型的数据obj,而”new Object()”这部分的语义将会作用于java堆中，形成一块存储Object类型的所有实例数据值的内存区域（当然严格的来讲，对象也是可以在栈上分配内存的，jvm中可以借助对象的逃逸分析来决定一些小对象是否在可以进行栈上分配，这样做的目的是为了降低GC回收频率以及提升GC回收效率，但这毕竟只是一种jvm调优的辅助手段，绝大多数对象实例只能在java堆区分配存储）。下面我们就通过源码看一下对象的内存到底是如何分配的。</p>
- <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line">class AAA&#123;</div><div class="line">  public static void main(string[] args)&#123;</div><div class="line">    Object = new Object()</div><div class="line">  &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p> 利用javap命令反编译上面的代码可以得到：</p>
-<p> <img src="http://osjt45oaj.bkt.clouddn.com/image.jpg" alt="photo"></p>
-<p> 可以看到java中new关键字对应底层jvm中的new指令，下面我们就来看一下jvm中new指令的实现：</p>
-<p> <img src="http://osjt45oaj.bkt.clouddn.com/image2.png" alt="photo"></p>
-<p>首先会尝试去常量池的对应位置找指定类（这里是Object类）的instanceKlass对象（可了解jvm中定义类与对象关系的oop-klass模型）。如果找到说明类已经被加载，否则触发类的初始化过程，这里不再详解，我们直接看对象内存是如何分配的，在allocate_instance方法中。</p>
-<p>在讲内存分配过程之前，我们先来了解下内存的几种方式，如果不考虑jvm借助逃逸分析来进行栈上分配，绝大多数对象都是在堆上进行分配的，这点毫无疑问。内存分配的方式如下：</p>
-<ul>
-<li>指针碰撞：如果内存是规整有序的，分配对象内存时只需要移动指针来划分内存区域。</li>
-<li>空闲列表：如果内存不是规整的，则记录下空闲内存的地址，申请内存时从列表上获取内存地址。</li>
-<li>快速分配：上述分配方式在多线程环境下，必须让线程分配内存保持同步（通过先cas,后加锁的方式），这样导致内存分配的效率很低，为了解决线程同步的问题，jvm引入了tlab这种快速分配的方式。</li>
-</ul>
-<p>先来简单介绍下tlab(threadLocalAllocationBuffer)。tlab是线程在eden上划分的一块私有区域，通过start、end两个指针卡出一块内存空间，这块空间只能由当前线程在上面进行对象内存分配，由一个top指针在这块卡出的区域移动，类似于指针碰撞。tlab并不是线程私有内存，它是卡出一块空间只让当前线程进行内存分配，这块空间是eden的空间，上面分配的对象还是线程共享的。了解了这样一个概念，我们就继续看下内存的代码，入口是上面提到的allocate_instance.</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new1.png" alt="allocate"></p>
-<p>方法中会先判断当前类是否实现了finalize方法，如果有则会创建finalizer对象。我们直接跟内存分配的代码：</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new2.png" alt=""></p>
-<p>继续看Common_mem_allocate_init方法最终会调到CollectedHeap::common_mem_allocate_noinit方法</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new3.png" alt=""></p>
-<p>这里会看到如果使用tlab，会尝试去tlab上分配，jvm默认开启tlab,jvm中线程run方法会首先去初始化一个tlab。如果不使用tlab，则在直接在堆上分配，这个后面再说，我们先看下tlab上分配。</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new4.png" alt=""></p>
-<p>这里会首先尝试在tlab上分配，如果分配失败则进行慢速分配。</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new5.png" alt=""></p>
-<p>tlab有个最大可浪费空间的字段，如果当前tlab剩余空间大于要分配的空间，则直接分配，否则会看剩余空间是否大于可浪费空间，若是则直接在eden上分配对象空间，若否则重新丢弃当前tlab，重新在堆上开辟一块tlab,这就是上面提到的慢速分配过程。代码如下：</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new6.png" alt=""></p>
-<p>本质上在堆上分配对象空间和分配tlab是一样的，这块内存都是临时的下面看一下堆是如何分配tlab的。</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new7.png" alt=""></p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new8.png" alt=""><br>首先会确保当前JVM没有进行gc,如果正在gc则不进行分配。首先通过自旋+cas这种活锁的方式进行原子分配，上面代码中的par_allocate会调用jvm的cas指令如下：<br><img src="http://osjt45oaj.bkt.clouddn.com/new9.png" alt=""></p>
-<p>如果无锁的方式分配失败，则继续执行mem_allocate_work下面的代码,无锁分配失败后则以加锁的方式继续尝试分配</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new10.png" alt=""><br><img src="http://osjt45oaj.bkt.clouddn.com/new11.png" alt=""></p>
-<p>first_only代表是否只在新生代分配，根据上面的代码可以看出大的对象这个值为false，在attempt_allocation方法中，会遍历所有的内存代尝试分配内存，如果first_only为true的话则只在新生代进行分配，如果分配失败直接返回。<br>继续看mem_allocate_work下面的代码：<br>如果上面分配内存仍然失败，则继续执行。<br><img src="http://osjt45oaj.bkt.clouddn.com/new12.png" alt=""><br>1、gc_locker::is_active_and_needs_gc()为真时，表示当前其它线程已经触发了gc；<br>2、如果is_tlab为真，表示当前线程正在为局部分配缓冲区申请内存；<br>3、如果!gch-&gt;is_maximal_no_gc()为真，表示新生代或老年代可以进行内存扩展，扩展完成后，再次尝试从各代中进行分配expand_heap_and_allocate方法。<br>4.如果拓展后分配仍然不成功，则继续往下执行<br><img src="http://osjt45oaj.bkt.clouddn.com/new13.png" alt=""><br>如果当前线程没有位于jni的临界区，将释放Java堆的互斥锁，以使得请求gc的线程可以进行gc操作，等所有本地线程退出临界区和gc完成后，将继续循环尝试分配内存。<br>如果还是分配不成功，则执行GC操作.<br><img src="http://osjt45oaj.bkt.clouddn.com/new14.png" alt=""></p>
-<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>上述就是jvm中关于对象分配内存的整个流程，jvm会优先以快速分配的方式在tlab上进行，如果分配失败进行堆上分配或者执行tlab的refill过程，期间还有gc的参与，最终是为了给对象在堆上分配一块内存。</p>
-
-      
-    </div>
-    <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cj4w616s50000bt2mkw95y7m5" class="article-share-link">Share</a>
-      
-      
-  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
-
-    </footer>
-  </div>
-  
-</article>
-
-
-  
 
 </section>
         

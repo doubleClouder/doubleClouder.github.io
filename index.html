@@ -90,11 +90,9 @@
     
     <div class="article-entry" itemprop="articleBody">
       
-        <p>##简介</p>
-<p>WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&gt;WeakReference-&gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHashMap中，当某个键不再正常使用时，将自动移除其条目。更精确地说，对于一个给定的键，其映射的存在并不阻止垃圾回收器对该键的丢弃，这就使该键成为可终止的，被终止，然后被回收。丢弃某个键时，其条目从映射中有效地移除。</p>
+        <h1 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h1><p>WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&gt;WeakReference-&gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHashMap中，当某个键不再正常使用时，将自动移除其条目。更精确地说，对于一个给定的键，其映射的存在并不阻止垃圾回收器对该键的丢弃，这就使该键成为可终止的，被终止，然后被回收。丢弃某个键时，其条目从映射中有效地移除。</p>
 <p>WeakHashMap的行为取决于垃圾回收器的动作。由于垃圾回收器是由jvm调度的，gc可以发生在WeakHashMap对象生命周期的任何时候，所以WeakHashMap的表现为，即使对 WeakHashMap 实例进行同步，并且没有调用任何赋值方法，在一段时间后 size 方法也可能返回较小的值，对于 isEmpty 方法，可以先返回true，然后返回true，对于给定的键，containsKey方法返回true,然后返回false，对于给定的键,get方法返回一个值,但接着返回null。总而言之就是只要在垃圾回收器清除某个键的弱引用之后，该键才会自动移除。</p>
-<p>##关于引用</p>
-<p>深入了解WeakHashMap之前，我们必须对java中的几种引用类型有着明确的认识：</p>
+<h1 id="关于引用"><a href="#关于引用" class="headerlink" title="关于引用"></a>关于引用</h1><p>深入了解WeakHashMap之前，我们必须对java中的几种引用类型有着明确的认识：</p>
 <ul>
 <li><p>强引用</p>
 <p>强引用是相对其他类型引用而言的。如果一个对象具有强引用，GC绝不会回收它，当内存空间不足时，JVM宁愿抛出OOM。new出来的对象是典型的强引用。</p>
@@ -127,7 +125,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cj5634pmo0008ql2mwdho4ggo" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cj563gsbu0009ry2mv7th6c8j" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -188,7 +186,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cj5634pml0005ql2mprcm983z" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cj563gsbo0004ry2moa5jvyyl" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/jvm/">jvm</a></li></ul>
@@ -259,7 +257,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cj5634pmk0004ql2mbkea1m29" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cj563gsbt0008ry2mfvc31xk5" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -296,14 +294,53 @@
         <p>说到动态代理，我们先来说说代理模式。代理模式是Java中一种常见的也是非常重要的设计模式，先来看下定义：当一个对象不适合或者无法直接访问另一对象时，通过一个代理来控制对另一对象的访问，这个代理对象就起到了一个中介的作用。代理模式的主要特征是代理类和委托类实现同一接口。下面就是代理模式最基本的结构图。<br><img src="http://osjt45oaj.bkt.clouddn.com/proxy1.png" alt=""><br>根据这个定义，我们先写一个简单的代理模式：</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div></pre></td><td class="code"><pre><div class="line">public interface Service &#123;</div><div class="line">    void doService();</div><div class="line">&#125;</div><div class="line"></div><div class="line">public class ProxyDemo &#123;</div><div class="line"></div><div class="line">    class ServiceImpl implements Service&#123;</div><div class="line">        @Override</div><div class="line">        public void doService() &#123;</div><div class="line">            System.out.println(&quot;do some service&quot;);</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    class Proxy implements Service&#123;</div><div class="line">        private Service service;</div><div class="line"></div><div class="line">        public Proxy(Service service)&#123;</div><div class="line">            this.service = service;</div><div class="line">        &#125;</div><div class="line">        @Override</div><div class="line">        public void doService() &#123;</div><div class="line">            System.out.println(&quot;do something before&quot;);</div><div class="line">            service.doService();</div><div class="line">            System.out.println(&quot;do something after&quot;);</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public static void main(String[] args)&#123;</div><div class="line">        Service service = new ProxyDemo().new ServiceImpl();</div><div class="line">        Service proxy = new ProxyDemo().new Proxy(service);</div><div class="line">        proxy.doService();</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
 <p>上面就是代理模式的一种基本实现，我们称之静态代理。它可以在不修改目标对象的前提下，对目标功能进行拓展。所以缺<br>点也是显而易见的。因为代理对象需要与目标对象实现一样的接口，所以会有很多代理类，而且,一旦接口增加方法,目标对象与代理对象都要维护。动态代理就解决了这些问题。</p>
-<p>#JDK动态代理</p>
-<p>动态代理有两种，JDK动态代理和cglib动态代理，本文我先来深入探讨一下JDK动态代理。JDK动态代理需要我们实现<br>InvocationHandler接口，在invoke方法中对目标类的目标方法进行增强（即定义横切逻辑），还是先上代码看下如何使用。</p>
+<h1 id="JDK动态代理"><a href="#JDK动态代理" class="headerlink" title="JDK动态代理"></a>JDK动态代理</h1><p>动态代理有两种，JDK动态代理和cglib动态代理，本文我先来深入探讨一下JDK动态代理。JDK动态代理需要我们实现<br>InvocationHandler接口，在invoke方法中对目标类的目标方法进行增强（即定义横切逻辑），还是先上代码看下如何使用。</p>
 <p><img src="http://osjt45oaj.bkt.clouddn.com/proxy2.png" alt=""><br>这就是jdk动态代理的基本用法，实际这就是一个aop了，spring aop也是使用Proxy和InvocationHandler这两个<br>类来进行方法增强的。通过这种方式我们就可以动态的代理目标对象，可是它是怎么达到效果的呢？知其然，知其所以然。下面就跟下这两个类的源码。<br><img src="http://osjt45oaj.bkt.clouddn.com/proxy3.png" alt=""><br>上面是Proxy#newProxyInstance方法。我们先看下729行，这里调用目标类的构造方法，然后739行，实例化目标类<br>并将对象返回给上面的MyInvocationHandler。我们再跟进上面的getproxyClass方法看下。<br><img src="http://osjt45oaj.bkt.clouddn.com/proxy4.png" alt=""><br>进入proxyClassCache.get这里先看目标接口的实例是否有缓存，有就直接返回。没有就通过ProxyclassFactory<br>这个工厂类创建并加入缓存。最近通过ProxyclassFactory的apply方法创建实例。<br><img src="http://osjt45oaj.bkt.clouddn.com/proxy5.png" alt=""><br>中间一些校验的逻辑跳过<br><img src="http://osjt45oaj.bkt.clouddn.com/proxy6.png" alt=""><br>上面的639行：ProxyGenerator#GenerateProxyClass方法才是生成代理类的关键所在，它其实是动态生成字节码并<br>保存到硬盘。到这里我们也就了解了jdk是怎样动态的生成的代理类了，可是代理类是怎么样调到我们上面的InvocationH<br>andler的invoke方法的呢？实际上这个生成代理类会传入一个InvocationHandler对象，代理类在覆盖接口的目标方<br>法中会调用invoke方法。JDK动态代理大致上就是这样一个过程。</p>
 
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cj5634pm90000ql2mcllyjyt2" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cj563gsbd0000ry2ml110rht7" class="article-share-link">Share</a>
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
+
+    </footer>
+  </div>
+  
+</article>
+
+
+  
+    <article id="post-singleton" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2017/04/10/singleton/" class="article-date">
+  <time datetime="2017-04-10T02:14:19.000Z" itemprop="datePublished">2017-04-10</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2017/04/10/singleton/">深入单例模式</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p>如何确保一个java类只被实例化一次？很显然，答案是单例模式。单例模式是一种常见而且非常有用的设计模式，我们到处能看见单例模式的身影，比如创建各种连接池、线程池、日志对象等。单例类通过自行实例化并且在系统中有实例请求时提供这个实例，从而确保该类只被实例化一次。</p>
+<h2 id="懒汉式"><a href="#懒汉式" class="headerlink" title="懒汉式"></a>懒汉式</h2><p><img src="http://osjt45oaj.bkt.clouddn.com/singleton1.png" alt=""><br>懒汉式实际上是一种懒加载，但为了在多线程环境下不破坏单例，需要在获取实例时增加双重检查或静态内部类的方式确保线程安全。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton2.png" alt=""><br>通过双重检测可以确保singleton只被实例化一次，但这里其实还是有问题，因为对象初始化和为对象引用赋值存在指令重排序，线程判断singleton不为null时返回的可能是一个未初始化的对象，可以用volatile关键字解决，这里不做赘述。我们还可以通过静态内部类的方式达到线程安全的目的。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton3.png" alt=""><br>通过静态内部类的方式获取Singleton的实例是线程安全的，因为jvm保证类的加载和初始化过程是线程安全的，所以此种方式创建单例既实现线程安全，又避免同步带来的性能英雄，要优于双重检查的方式。<br>那么问题来了，上面线程安全的单例是否不论什么情况下都只有一个实例？答案是否定的。我们可以通过反射和反序列化来破坏单例。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton4.png" alt=""><br>上面是通过反射的方式强行调用构造方法，显然输出结果为false。当单例类实现了Serializable接口，即该类对象可序列化时，可以通过序列化和反序列化过程自行获取实例。序列化与反序列可以实现对象的深拷贝。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton5.png" alt=""><br>为了防止这种暴力的破坏单例，可以对上面的单例类稍加改造。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton6.png" alt=""><br> 到此为止，我们就创建了一个严格意义的单例，实际上枚举类内部实现与此类似，所以枚举是实现单例最好的方式。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cj563gsbm0003ry2met0gmvxl" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -339,14 +376,14 @@
       
         <p>缓存在现在的各种系统中的作用事不言而喻的，cache一般指为提高系统性能而开辟的一块内存空间，利用缓存不仅可以提高系统响应时间，还可以节省处理数据的资源消耗。现在有很多优秀的cache框架提供非常强大的功能，但是对于数据不是很大，数据结构简单的我们可以考虑本地缓存，Guava Cache是一个基于全内存的本地缓存实现，应该可以说是目前为止java实现本地缓存的不二之选。</p>
 <p>Guava Cache可以看成一个concurrentHashMap,因而它是线程安全的，除此之外，它内部还实现了缓存淘汰，避免长期的内存占用。我们还是先看下如何使用它，有两种方式可以创建Guava Cache,CacheLoader和Callable,主要区别是CacheLoader创建时需要指定与键关联的值的逻辑运算，简单的说，创建时能根据键经过运算得到值就用前者，否则用后者。我们先上代码：</p>
-<p>#CacheLoader<br><img src="http://osjt45oaj.bkt.clouddn.com/a.png" alt=""><br>上面我们定义了一个抽象类，提供一个无参和一个带失效时间参数的构造方法，但都需要创建一个CacheLoader提供给CacheBuilder,CacheBuilder还有很多实用的参数配置，感兴趣的可以自行研究下，这里不做赘述，创建时根据具体服务继承这个抽象类实现loadData()方法就可以了，使用时最终是通过loadingCahce的get(k)取值。这个方法先从缓存中取值，若没取到则通过CacheLoader原子的向缓存中添加新值。</p>
-<p>#Callable<br><img src="http://osjt45oaj.bkt.clouddn.com/b.png" alt=""><br> 这里也是cache.get(k)取值，没取到通过callable原子添加。也可通过cache.put(key.value)显示的添加新值。Guava Cache的用法很简单，下面我们来看下他到底是如何存的。前面我们也提过Guava Cache与ConcurrentHashMap类似，它延用了ConcurentHashMap的设计思路，使用多个segment来细粒度锁，保证线程安全下的并发效率。下面是segment的数据结构。<br><img src="http://osjt45oaj.bkt.clouddn.com/c.png" alt=""><br>每个segment包含一个ReferenceEntry数组，数组每项都是一个ReferenceEntry链，每个ReferenceEntry包含key,hash，valueReference和next字段。在一个segment中，所有的ReferenceEntry还组成一个accessQueue和一个writeQueue。这两个queue是了实现缓存淘汰算法-LRU算法,这两条链都是一个双向链表，通过ReferenceEntry中的previousInWriteQueue、nextInWriteQueue和previousInAccessQueue、nextInAccessQueue链接而成。WriteQueue和AccessQueue都是自定义了offer、add（直接调用offer）、remove、poll等操作的逻辑，对于offer（add）操作，如果是新加的节点，则直接加入到该链的结尾，如果是已存在的节点，则将该节点链接的链尾；对remove操作，直接从该链中移除该节点；对poll操作，将头节点的下一个节点移除，并返回。在对每个节点的更新操作都会将该节点重新链到write链和access链末尾，并且更新其writeTime和accessTime字段，而每找到一个节点，都会将该节点重新链到access链末尾，并更新其accessTime字段。这两个双向链表的存在都是为了实现采用最近最少使用算法（LRU）的evict操作（expire、size limit引起的evict）。</p>
+<h1 id="CacheLoader"><a href="#CacheLoader" class="headerlink" title="CacheLoader"></a>CacheLoader</h1><p><img src="http://osjt45oaj.bkt.clouddn.com/a.png" alt=""><br>上面我们定义了一个抽象类，提供一个无参和一个带失效时间参数的构造方法，但都需要创建一个CacheLoader提供给CacheBuilder,CacheBuilder还有很多实用的参数配置，感兴趣的可以自行研究下，这里不做赘述，创建时根据具体服务继承这个抽象类实现loadData()方法就可以了，使用时最终是通过loadingCahce的get(k)取值。这个方法先从缓存中取值，若没取到则通过CacheLoader原子的向缓存中添加新值。</p>
+<h1 id="Callable"><a href="#Callable" class="headerlink" title="Callable"></a>Callable</h1><p><img src="http://osjt45oaj.bkt.clouddn.com/b.png" alt=""><br> 这里也是cache.get(k)取值，没取到通过callable原子添加。也可通过cache.put(key.value)显示的添加新值。Guava Cache的用法很简单，下面我们来看下他到底是如何存的。前面我们也提过Guava Cache与ConcurrentHashMap类似，它延用了ConcurentHashMap的设计思路，使用多个segment来细粒度锁，保证线程安全下的并发效率。下面是segment的数据结构。<br><img src="http://osjt45oaj.bkt.clouddn.com/c.png" alt=""><br>每个segment包含一个ReferenceEntry数组，数组每项都是一个ReferenceEntry链，每个ReferenceEntry包含key,hash，valueReference和next字段。在一个segment中，所有的ReferenceEntry还组成一个accessQueue和一个writeQueue。这两个queue是了实现缓存淘汰算法-LRU算法,这两条链都是一个双向链表，通过ReferenceEntry中的previousInWriteQueue、nextInWriteQueue和previousInAccessQueue、nextInAccessQueue链接而成。WriteQueue和AccessQueue都是自定义了offer、add（直接调用offer）、remove、poll等操作的逻辑，对于offer（add）操作，如果是新加的节点，则直接加入到该链的结尾，如果是已存在的节点，则将该节点链接的链尾；对remove操作，直接从该链中移除该节点；对poll操作，将头节点的下一个节点移除，并返回。在对每个节点的更新操作都会将该节点重新链到write链和access链末尾，并且更新其writeTime和accessTime字段，而每找到一个节点，都会将该节点重新链到access链末尾，并更新其accessTime字段。这两个双向链表的存在都是为了实现采用最近最少使用算法（LRU）的evict操作（expire、size limit引起的evict）。</p>
 <p> ReferenceEntry会根据是否配置了expireAfterWrite、expireAfterAccess、maximumSize来决定是否需要write链和access链确定要创建的具体Reference：StrongEntry、StrongWriteEntry等，可以指定ReferenceEntry的key为强引用Reference或WeakReference以达到自动内存回收的目的。对于ValueReference,它对应三个实现类，分别为StrongValueReference、SoftValueReference、WeakValueReference。ValueReference还持有对ReferenceEntry的引用，这样做是因为在SoftValueRerence和WeakValueReference被回收时，需要将其key对应的项在segement中移除。Guava Cache在每次操作时会去检查是否需要evict操作，这样也可能发生在缓存长期会使用的情况下导致某些清理的entry未能清理。</p>
 
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cj5634pmj0003ql2mvbyk3th5" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cj563gsbr0005ry2m6al6a4eg" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>
@@ -394,7 +431,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cj5634pmd0001ql2mdfdzsf74" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cj563gsbi0001ry2mc95964rr" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -428,7 +465,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 10px;">guava</a> <a href="/tags/java/" style="font-size: 20px;">java</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/设计模式/" style="font-size: 10px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 10px;">guava</a> <a href="/tags/java/" style="font-size: 20px;">java</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/设计模式/" style="font-size: 15px;">设计模式</a>
     </div>
   </div>
 
@@ -466,7 +503,7 @@
           </li>
         
           <li>
-            <a href="/2017/03/17/guava-cache/">本地缓存之Guava cache</a>
+            <a href="/2017/04/10/singleton/">深入单例模式</a>
           </li>
         
       </ul>

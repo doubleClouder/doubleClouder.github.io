@@ -5,17 +5,17 @@
   
   <title>weakHashMap与GC | clouder的博客</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta name="description" content="##简介 WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&amp;gt;WeakReference-&amp;gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHa">
+  <meta name="description" content="简介WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&amp;gt;WeakReference-&amp;gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHashM">
 <meta name="keywords" content="java">
 <meta property="og:type" content="article">
 <meta property="og:title" content="weakHashMap与GC">
 <meta property="og:url" content="http://yoursite.com/2017/07/09/weak-gc/index.html">
 <meta property="og:site_name" content="clouder的博客">
-<meta property="og:description" content="##简介 WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&amp;gt;WeakReference-&amp;gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHa">
-<meta property="og:updated_time" content="2017-07-16T02:11:17.000Z">
+<meta property="og:description" content="简介WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&amp;gt;WeakReference-&amp;gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHashM">
+<meta property="og:updated_time" content="2017-07-16T02:12:20.000Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="weakHashMap与GC">
-<meta name="twitter:description" content="##简介 WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&amp;gt;WeakReference-&amp;gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHa">
+<meta name="twitter:description" content="简介WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&amp;gt;WeakReference-&amp;gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHashM">
   
     <link rel="alternate" href="/atom.xml" title="clouder的博客" type="application/atom+xml">
   
@@ -90,11 +90,9 @@
     
     <div class="article-entry" itemprop="articleBody">
       
-        <p>##简介</p>
-<p>WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&gt;WeakReference-&gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHashMap中，当某个键不再正常使用时，将自动移除其条目。更精确地说，对于一个给定的键，其映射的存在并不阻止垃圾回收器对该键的丢弃，这就使该键成为可终止的，被终止，然后被回收。丢弃某个键时，其条目从映射中有效地移除。</p>
+        <h1 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h1><p>WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&gt;WeakReference-&gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHashMap中，当某个键不再正常使用时，将自动移除其条目。更精确地说，对于一个给定的键，其映射的存在并不阻止垃圾回收器对该键的丢弃，这就使该键成为可终止的，被终止，然后被回收。丢弃某个键时，其条目从映射中有效地移除。</p>
 <p>WeakHashMap的行为取决于垃圾回收器的动作。由于垃圾回收器是由jvm调度的，gc可以发生在WeakHashMap对象生命周期的任何时候，所以WeakHashMap的表现为，即使对 WeakHashMap 实例进行同步，并且没有调用任何赋值方法，在一段时间后 size 方法也可能返回较小的值，对于 isEmpty 方法，可以先返回true，然后返回true，对于给定的键，containsKey方法返回true,然后返回false，对于给定的键,get方法返回一个值,但接着返回null。总而言之就是只要在垃圾回收器清除某个键的弱引用之后，该键才会自动移除。</p>
-<p>##关于引用</p>
-<p>深入了解WeakHashMap之前，我们必须对java中的几种引用类型有着明确的认识：</p>
+<h1 id="关于引用"><a href="#关于引用" class="headerlink" title="关于引用"></a>关于引用</h1><p>深入了解WeakHashMap之前，我们必须对java中的几种引用类型有着明确的认识：</p>
 <ul>
 <li><p>强引用</p>
 <p>强引用是相对其他类型引用而言的。如果一个对象具有强引用，GC绝不会回收它，当内存空间不足时，JVM宁愿抛出OOM。new出来的对象是典型的强引用。</p>
@@ -127,7 +125,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cj5634pmo0008ql2mwdho4ggo" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cj563gsbu0009ry2mv7th6c8j" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -170,7 +168,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 10px;">guava</a> <a href="/tags/java/" style="font-size: 20px;">java</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/设计模式/" style="font-size: 10px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 10px;">guava</a> <a href="/tags/java/" style="font-size: 20px;">java</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/设计模式/" style="font-size: 15px;">设计模式</a>
     </div>
   </div>
 
@@ -208,7 +206,7 @@
           </li>
         
           <li>
-            <a href="/2017/03/17/guava-cache/">本地缓存之Guava cache</a>
+            <a href="/2017/04/10/singleton/">深入单例模式</a>
           </li>
         
       </ul>

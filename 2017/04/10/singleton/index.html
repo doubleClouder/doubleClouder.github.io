@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>深入单例模式 | clouder的博客</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="description" content="如何确保一个java类只被实例化一次？很显然，答案是单例模式。单例模式是一种常见而且非常有用的设计模式，我们到处能看见单例模式的身影，比如创建各种连接池、线程池、日志对象等。单例类通过自行实例化并且在系统中有实例请求时提供这个实例，从而确保该类只被实例化一次。 懒汉式懒汉式实际上是一种懒加载，但为了在多线程环境下不破坏单例，需要在获取实例时增加双重检查或静态内部类的方式确保线程安全。通过双重检测可">
+<meta name="keywords" content="设计模式">
+<meta property="og:type" content="article">
+<meta property="og:title" content="深入单例模式">
+<meta property="og:url" content="http://yoursite.com/2017/04/10/singleton/index.html">
+<meta property="og:site_name" content="clouder的博客">
+<meta property="og:description" content="如何确保一个java类只被实例化一次？很显然，答案是单例模式。单例模式是一种常见而且非常有用的设计模式，我们到处能看见单例模式的身影，比如创建各种连接池、线程池、日志对象等。单例类通过自行实例化并且在系统中有实例请求时提供这个实例，从而确保该类只被实例化一次。 懒汉式懒汉式实际上是一种懒加载，但为了在多线程环境下不破坏单例，需要在获取实例时增加双重检查或静态内部类的方式确保线程安全。通过双重检测可">
+<meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/singleton1.png">
+<meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/singleton2.png">
+<meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/singleton3.png">
+<meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/singleton4.png">
+<meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/singleton5.png">
+<meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/singleton6.png">
+<meta property="og:updated_time" content="2017-07-16T02:20:13.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="深入单例模式">
+<meta name="twitter:description" content="如何确保一个java类只被实例化一次？很显然，答案是单例模式。单例模式是一种常见而且非常有用的设计模式，我们到处能看见单例模式的身影，比如创建各种连接池、线程池、日志对象等。单例类通过自行实例化并且在系统中有实例请求时提供这个实例，从而确保该类只被实例化一次。 懒汉式懒汉式实际上是一种懒加载，但为了在多线程环境下不破坏单例，需要在获取实例时增加双重检查或静态内部类的方式确保线程安全。通过双重检测可">
+<meta name="twitter:image" content="http://osjt45oaj.bkt.clouddn.com/singleton1.png">
+  
+    <link rel="alternate" href="/atom.xml" title="clouder的博客" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png">
+  
+  
+    <link href="//fonts.googleapis.com/css?family=Source+Code+Pro" rel="stylesheet" type="text/css">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  
+
+</head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">clouder的博客</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">在学习的道路上不断成长。。</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+          <a id="nav-rss-link" class="nav-icon" href="/atom.xml" title="RSS Feed"></a>
+        
+        <a id="nav-search-btn" class="nav-icon" title="搜索"></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://yoursite.com"></form>
+      </div>
+    </div>
+  </div>
+</header>
+      <div class="outer">
+        <section id="main"><article id="post-singleton" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2017/04/10/singleton/" class="article-date">
+  <time datetime="2017-04-10T02:14:19.000Z" itemprop="datePublished">2017-04-10</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="article-title" itemprop="name">
+      深入单例模式
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p>如何确保一个java类只被实例化一次？很显然，答案是单例模式。单例模式是一种常见而且非常有用的设计模式，我们到处能看见单例模式的身影，比如创建各种连接池、线程池、日志对象等。单例类通过自行实例化并且在系统中有实例请求时提供这个实例，从而确保该类只被实例化一次。</p>
+<h2 id="懒汉式"><a href="#懒汉式" class="headerlink" title="懒汉式"></a>懒汉式</h2><p><img src="http://osjt45oaj.bkt.clouddn.com/singleton1.png" alt=""><br>懒汉式实际上是一种懒加载，但为了在多线程环境下不破坏单例，需要在获取实例时增加双重检查或静态内部类的方式确保线程安全。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton2.png" alt=""><br>通过双重检测可以确保singleton只被实例化一次，但这里其实还是有问题，因为对象初始化和为对象引用赋值存在指令重排序，线程判断singleton不为null时返回的可能是一个未初始化的对象，可以用volatile关键字解决，这里不做赘述。我们还可以通过静态内部类的方式达到线程安全的目的。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton3.png" alt=""><br>通过静态内部类的方式获取Singleton的实例是线程安全的，因为jvm保证类的加载和初始化过程是线程安全的，所以此种方式创建单例既实现线程安全，又避免同步带来的性能英雄，要优于双重检查的方式。<br>那么问题来了，上面线程安全的单例是否不论什么情况下都只有一个实例？答案是否定的。我们可以通过反射和反序列化来破坏单例。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton4.png" alt=""><br>上面是通过反射的方式强行调用构造方法，显然输出结果为false。当单例类实现了Serializable接口，即该类对象可序列化时，可以通过序列化和反序列化过程自行获取实例。序列化与反序列可以实现对象的深拷贝。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton5.png" alt=""><br>为了防止这种暴力的破坏单例，可以对上面的单例类稍加改造。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton6.png" alt=""><br> 到此为止，我们就创建了一个严格意义的单例，实际上枚举类内部实现与此类似，所以枚举是实现单例最好的方式。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cj563gsbm0003ry2met0gmvxl" class="article-share-link">Share</a>
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
+
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+    <a href="/2017/04/12/JDK-Dynamic-Proxy/" id="article-nav-newer" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Newer</strong>
+      <div class="article-nav-title">
+        
+          JDK动态代理
+        
+      </div>
+    </a>
+  
+  
+    <a href="/2017/03/17/guava-cache/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">本地缓存之Guava cache</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签</h3>
+    <div class="widget">
+      <ul class="tag-list"><li class="tag-list-item"><a class="tag-list-link" href="/tags/guava/">guava</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/java/">java</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/jvm/">jvm</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签云</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/guava/" style="font-size: 10px;">guava</a> <a href="/tags/java/" style="font-size: 20px;">java</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/设计模式/" style="font-size: 15px;">设计模式</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">归档</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">最新文章</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2017/07/09/weak-gc/">weakHashMap与GC</a>
+          </li>
+        
+          <li>
+            <a href="/2017/07/04/obejct-struct/">对象内存布局</a>
+          </li>
+        
+          <li>
+            <a href="/2017/07/03/new-object-1/">jvm源码分析之内存分配</a>
+          </li>
+        
+          <li>
+            <a href="/2017/04/12/JDK-Dynamic-Proxy/">JDK动态代理</a>
+          </li>
+        
+          <li>
+            <a href="/2017/04/10/singleton/">深入单例模式</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      &copy; 2017 zhusheng<br>
+      Powered by <a href="http://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+  <link rel="stylesheet" href="/fancybox/jquery.fancybox.css">
+  <script src="/fancybox/jquery.fancybox.pack.js"></script>
+
+
+<script src="/js/script.js"></script>
+
+  </div>
+</body>
+</html>

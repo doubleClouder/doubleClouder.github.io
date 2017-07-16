@@ -90,9 +90,11 @@
     
     <div class="article-entry" itemprop="articleBody">
       
-        <p>#简介<br>WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&gt;WeakReference-&gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHashMap中，当某个键不再正常使用时，将自动移除其条目。更精确地说，对于一个给定的键，其映射的存在并不阻止垃圾回收器对该键的丢弃，这就使该键成为可终止的，被终止，然后被回收。丢弃某个键时，其条目从映射中有效地移除。</p>
+        <p>#简介</p>
+<p>WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&gt;WeakReference-&gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHashMap中，当某个键不再正常使用时，将自动移除其条目。更精确地说，对于一个给定的键，其映射的存在并不阻止垃圾回收器对该键的丢弃，这就使该键成为可终止的，被终止，然后被回收。丢弃某个键时，其条目从映射中有效地移除。</p>
 <p>WeakHashMap的行为取决于垃圾回收器的动作。由于垃圾回收器是由jvm调度的，gc可以发生在WeakHashMap对象生命周期的任何时候，所以WeakHashMap的表现为，即使对 WeakHashMap 实例进行同步，并且没有调用任何赋值方法，在一段时间后 size 方法也可能返回较小的值，对于 isEmpty 方法，可以先返回true，然后返回true，对于给定的键，containsKey方法返回true,然后返回false，对于给定的键,get方法返回一个值,但接着返回null。总而言之就是只要在垃圾回收器清除某个键的弱引用之后，该键才会自动移除。</p>
-<p>#关于引用<br>深入了解WeakHashMap之前，我们必须对java中的几种引用类型有着明确的认识：</p>
+<p>#关于引用</p>
+<p>深入了解WeakHashMap之前，我们必须对java中的几种引用类型有着明确的认识：</p>
 <ul>
 <li><p>强引用</p>
 <p>强引用是相对其他类型引用而言的。如果一个对象具有强引用，GC绝不会回收它，当内存空间不足时，JVM宁愿抛出OOM。new出来的对象是典型的强引用。</p>
@@ -113,8 +115,7 @@
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">  //PhantomReference</div><div class="line">PhantomReference&lt;Object&gt; phantomReference=new PhantomReference&lt;Object&gt;(new User(),new ReferenceQueue&lt;Object&gt;());</div></pre></td></tr></table></figure>
 </li>
 </ul>
-<p>#WeakHashMap与GC</p>
-<p>前面我们讲到WeakHashMap中Entry[]有着Entry-&gt;WeakReference-&gt;Reference这样一个继承结构，我们先来看下Reference类。</p>
+<h1 id="WeakHashMap与GC"><a href="#WeakHashMap与GC" class="headerlink" title="WeakHashMap与GC"></a>WeakHashMap与GC</h1><p>前面我们讲到WeakHashMap中Entry[]有着Entry-&gt;WeakReference-&gt;Reference这样一个继承结构，我们先来看下Reference类。</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div></pre></td><td class="code"><pre><div class="line">private static Lock lock = new Lock();</div><div class="line"></div><div class="line"></div><div class="line">/* List of References waiting to be enqueued.  The collector adds</div><div class="line"> * References to this list, while the Reference-handler thread removes</div><div class="line"> * them.  This list is protected by the above lock object. The</div><div class="line"> * list uses the discovered field to link its elements.</div><div class="line"> */</div><div class="line">private static Reference&lt;Object&gt; pending = null;</div><div class="line"></div><div class="line">/* High-priority thread to enqueue pending References</div><div class="line"> */</div><div class="line">private static class ReferenceHandler extends Thread &#123;</div><div class="line"></div><div class="line">    private static void ensureClassInitialized(Class&lt;?&gt; clazz) &#123;</div><div class="line">        try &#123;</div><div class="line">            Class.forName(clazz.getName(), true, clazz.getClassLoader());</div><div class="line">        &#125; catch (ClassNotFoundException e) &#123;</div><div class="line">            throw (Error) new NoClassDefFoundError(e.getMessage()).initCause(e);</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    static &#123;</div><div class="line">        // pre-load and initialize InterruptedException and Cleaner classes</div><div class="line">        // so that we don&apos;t get into trouble later in the run loop if there&apos;s</div><div class="line">        // memory shortage while loading/initializing them lazily.</div><div class="line">        ensureClassInitialized(InterruptedException.class);</div><div class="line">        ensureClassInitialized(Cleaner.class);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    ReferenceHandler(ThreadGroup g, String name) &#123;</div><div class="line">        super(g, name);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public void run() &#123;</div><div class="line">        while (true) &#123;</div><div class="line">            tryHandlePending(true);</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
 <p>上面是Reference类的部分代码，可以看到Reference中有一个全局的锁对象：lock;有一个静态变量pending;在静态代码块中启动一个ReferenceHandler线程，启动完成后处于wait状态，它在一个Lock同步锁模块中等待。那么WeakHashMap中key/value如何自动回收跟这些有什么关系呢。</p>
 <p>我们假设JVM使用cms收集器（使用其他收集器对于弱引用的回收原理相同）。JVM 在进行CMS GC的时候，会创建一个ConcurrentMarkSweepThread（简称CMST）线程去进行GC，ConcurrentMarkSweepThread线程被创建的同时会创建一个SurrogateLockerThread（简称SLT）线程并且启动它，SLT启动之后，处于等待阶段。CMST开始GC时，会发一个消息给SLT让它去获取Java层Reference对象的全局锁：Lock。 直到CMS GC完毕之后，JVM 会将WeakHashMap中所有被回收的对象所属的WeakReference容器对象放入到Reference 的pending属性当中（每次GC完毕之后，pending属性基本上都不会为null了），然后通知SLT释放并且notify全局锁:Lock。此时激活了ReferenceHandler线程的run方法，使其脱离wait状态，开始工作了。ReferenceHandler这个线程会将pending中的所有WeakReference对象都移动到它们各自的列队当中，比如当前这个WeakReference属于某个WeakHashMap对象，那么它就会被放入相应的ReferenceQueue列队里面（该列队是链表结构）。 当我们下次从WeakHashMap对象里面get、put数据或者调用size方法的时候，WeakHashMap就会将ReferenceQueue列队中的WeakReference一一poll出来去和Entry[]数据做比较，如果发现相同的，则说明这个Entry所保存的对象已经被GC掉了，那么将Entry[]内的Entry对象剔除掉，这样就完成的key/value的自动回收。</p>
@@ -126,7 +127,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cj562wz5z0008om2m6k38gqgk" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cj5633asl0005pw2mb9hhpu10" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -187,7 +188,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cj562wz5x0005om2m2t4xn4er" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cj5633asj0004pw2mhn2ivciw" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/jvm/">jvm</a></li></ul>
@@ -258,7 +259,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cj562wz5u0004om2mueuxrqti" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cj5633asn0008pw2mvlcc0f5m" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -302,7 +303,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cj562wz5i0000om2m0sbfmr62" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cj5633as60000pw2madjcl8hg" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -345,7 +346,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cj562wz5t0003om2mbn2j4ahk" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cj5633ash0003pw2m22vwjz6p" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>
@@ -393,7 +394,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cj562wz5o0001om2mtgais5mv" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cj5633asc0001pw2mbol33z2j" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>

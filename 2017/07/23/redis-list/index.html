@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>redis消息队列实现 | clouder的博客</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="description" content="大家都知道redis相较同类产品memcache而言有着丰富的数据类型,这里我们稍微说一下redis中的list数据类型，list的容量是2^32-1个元素，它存储的是链表结构，链表的属性是不管整个链表有多大，它的头尾操作是非常快的，这就符合一个消息队列的特性，简单意义上的消息队列就是生产者从对头插数据，消费者从队尾取数据，所以我们可以用redis中的list来实现一个mq。但是要使用mq，用市面">
+<meta name="keywords" content="redis">
+<meta property="og:type" content="article">
+<meta property="og:title" content="redis消息队列实现">
+<meta property="og:url" content="http://yoursite.com/2017/07/23/redis-list/index.html">
+<meta property="og:site_name" content="clouder的博客">
+<meta property="og:description" content="大家都知道redis相较同类产品memcache而言有着丰富的数据类型,这里我们稍微说一下redis中的list数据类型，list的容量是2^32-1个元素，它存储的是链表结构，链表的属性是不管整个链表有多大，它的头尾操作是非常快的，这就符合一个消息队列的特性，简单意义上的消息队列就是生产者从对头插数据，消费者从队尾取数据，所以我们可以用redis中的list来实现一个mq。但是要使用mq，用市面">
+<meta property="og:updated_time" content="2017-07-23T03:38:27.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="redis消息队列实现">
+<meta name="twitter:description" content="大家都知道redis相较同类产品memcache而言有着丰富的数据类型,这里我们稍微说一下redis中的list数据类型，list的容量是2^32-1个元素，它存储的是链表结构，链表的属性是不管整个链表有多大，它的头尾操作是非常快的，这就符合一个消息队列的特性，简单意义上的消息队列就是生产者从对头插数据，消费者从队尾取数据，所以我们可以用redis中的list来实现一个mq。但是要使用mq，用市面">
+  
+    <link rel="alternate" href="/atom.xml" title="clouder的博客" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png">
+  
+  
+    <link href="//fonts.googleapis.com/css?family=Source+Code+Pro" rel="stylesheet" type="text/css">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  
+
+</head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">clouder的博客</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">在学习的道路上不断成长。。</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+          <a id="nav-rss-link" class="nav-icon" href="/atom.xml" title="RSS Feed"></a>
+        
+        <a id="nav-search-btn" class="nav-icon" title="搜索"></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://yoursite.com"></form>
+      </div>
+    </div>
+  </div>
+</header>
+      <div class="outer">
+        <section id="main"><article id="post-redis-list" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2017/07/23/redis-list/" class="article-date">
+  <time datetime="2017-07-23T02:26:06.000Z" itemprop="datePublished">2017-07-23</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="article-title" itemprop="name">
+      redis消息队列实现
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p>大家都知道redis相较同类产品memcache而言有着丰富的数据类型,这里我们稍微说一下redis中的list数据类型，list的容量是2^32-1个元素，它存储的是链表结构，链表的属性是不管整个链表有多大，它的头尾操作是非常快的，这就符合一个消息队列的特性，简单意义上的消息队列就是生产者从对头插数据，消费者从队尾取数据，所以我们可以用redis中的list来实现一个mq。但是要使用mq，用市面上成熟的消息中间件产品岂不是更好？如rabbitmq、kafka等，当然，如rabbitmq、kafka等，当然如果要保证高可用高性能高吞吐量的消息队列，自然是要考虑使用此类成熟的中间件，这也不在本文描述范畴。但redis作为消息队列的好处是可以对消息的收发做到一个灵活的控制，添加一些自定义的行为，比如给消息定义优先级，所以在一定的业务场景下，将redis作为消息队列不失为一种好的选择。那么到底要如何实现呢。下面我们就演示一下在spring中如何整合redis消息队列。</p>
+<h3 id="生产者"><a href="#生产者" class="headerlink" title="生产者"></a>生产者</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line">public class RedisMq &#123;</div><div class="line">    @Resource</div><div class="line">    protected RedisTemplate jedisTemplate;</div><div class="line"></div><div class="line">    public void sendToRedis(final String msg) &#123;</div><div class="line">        String listName = &quot;xxx&quot;;</div><div class="line">        jedisTemplate.opsForList().rightPush(listName, mag);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>生产者的代码很简单，就是往redis的指定list的一端push一条消息。下面就看一下消费者一端如何想spring整合其他mq那样监听队列。</p>
+<h3 id="消费者"><a href="#消费者" class="headerlink" title="消费者"></a>消费者</h3><p>初始化队列类</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div><div class="line">60</div><div class="line">61</div></pre></td><td class="code"><pre><div class="line">public class InitializeQueue implements InitializingBean, DisposableBean &#123;</div><div class="line">    private QueueListener listener;</div><div class="line">    private RedisTemplate redisTemplate;</div><div class="line">    private static List&lt;RedisQueue&gt; listQ = new ArrayList&lt;&gt;();</div><div class="line"></div><div class="line">    /**</div><div class="line">     * 创建启动redis连接并监听</div><div class="line">     */</div><div class="line">    public void createQueue() &#123;</div><div class="line">        //这里先获取所有要监听的redis list名</div><div class="line">        List keys = xxx;</div><div class="line">        if (keys != null) &#123;</div><div class="line">            for (String key : keys) &#123;</div><div class="line">                RedisQueue queue = new RedisQueue();</div><div class="line">                queue.setListener(listener);</div><div class="line">                queue.setRedisTemplate(redisTemplate);</div><div class="line">                queue.setKey(app.getAppName());</div><div class="line">                listQ.add(queue);</div><div class="line">                try &#123;</div><div class="line">                    queue.start();</div><div class="line">                &#125; catch (Exception e) &#123;</div><div class="line">                    log.error(&quot;启动redis异常!&#123;&#125;&quot;, e);</div><div class="line">                &#125;</div><div class="line">            &#125;</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public QueueListener getListener() &#123;</div><div class="line">        return listener;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public void setListener(QueueListener listener) &#123;</div><div class="line">        this.listener = listener;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public RedisTemplate getRedisTemplate() &#123;</div><div class="line">        return redisTemplate;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public void setRedisTemplate(RedisTemplate redisTemplate) &#123;</div><div class="line">        this.redisTemplate = redisTemplate;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    /**</div><div class="line">     * 销毁redis连接</div><div class="line">     *</div><div class="line">     * @throws Exception</div><div class="line">     */</div><div class="line">    @Override</div><div class="line">    public void destroy() throws Exception &#123;</div><div class="line">        for (RedisQueue queue : listQ) &#123;</div><div class="line">            queue.destroy();</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    @Override</div><div class="line">    public void afterPropertiesSet() throws Exception &#123;</div><div class="line">        //创建队列</div><div class="line">        createQueue();</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>队列监听器</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div></pre></td><td class="code"><pre><div class="line">public interface QueueListener&lt;T&gt; &#123;</div><div class="line">    public void onMessage(T message);</div><div class="line">&#125;</div><div class="line"></div><div class="line">public class RedisQueueListener implements QueueListener&lt;String&gt; &#123;</div><div class="line">    private ExecutorService threadpool = Executors.newFixedThreadPool(10);</div><div class="line">    </div><div class="line">    @Override</div><div class="line">    public void onMessage(String value) &#123;</div><div class="line">        threadpool.execute(new MessageRunnable(value));</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    private class MessageRunnable implements Runnable &#123;</div><div class="line">        private String msg</div><div class="line">        public MessageRunnable(String msg) &#123;</div><div class="line">            this.msg = msg;</div><div class="line">        &#125;</div><div class="line">        @Override</div><div class="line">        public void run() &#123;</div><div class="line">            log.info(&quot;处理消息!&quot;);</div><div class="line">            //消息处理业务代码</div><div class="line">            ...</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>消息队列实例，当创建一个RedisQueue实例就会绑定redis中一个list，并一直从list的尾部取出数据</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div><div class="line">60</div><div class="line">61</div><div class="line">62</div><div class="line">63</div><div class="line">64</div><div class="line">65</div><div class="line">66</div><div class="line">67</div><div class="line">68</div><div class="line">69</div><div class="line">70</div><div class="line">71</div><div class="line">72</div><div class="line">73</div><div class="line">74</div><div class="line">75</div><div class="line">76</div><div class="line">77</div><div class="line">78</div><div class="line">79</div><div class="line">80</div><div class="line">81</div><div class="line">82</div><div class="line">83</div><div class="line">84</div><div class="line">85</div><div class="line">86</div><div class="line">87</div><div class="line">88</div><div class="line">89</div><div class="line">90</div><div class="line">91</div><div class="line">92</div><div class="line">93</div><div class="line">94</div><div class="line">95</div><div class="line">96</div><div class="line">97</div><div class="line">98</div><div class="line">99</div><div class="line">100</div><div class="line">101</div><div class="line">102</div><div class="line">103</div><div class="line">104</div><div class="line">105</div><div class="line">106</div><div class="line">107</div><div class="line">108</div><div class="line">109</div><div class="line">110</div><div class="line">111</div><div class="line">112</div><div class="line">113</div><div class="line">114</div><div class="line">115</div><div class="line">116</div><div class="line">117</div><div class="line">118</div><div class="line">119</div><div class="line">120</div><div class="line">121</div><div class="line">122</div><div class="line">123</div><div class="line">124</div><div class="line">125</div><div class="line">126</div><div class="line">127</div><div class="line">128</div><div class="line">129</div><div class="line">130</div><div class="line">131</div><div class="line">132</div><div class="line">133</div><div class="line">134</div><div class="line">135</div><div class="line">136</div><div class="line">137</div><div class="line">138</div><div class="line">139</div><div class="line">140</div><div class="line">141</div><div class="line">142</div><div class="line">143</div><div class="line">144</div><div class="line">145</div><div class="line">146</div><div class="line">147</div><div class="line">148</div><div class="line">149</div><div class="line">150</div><div class="line">151</div><div class="line">152</div><div class="line">153</div><div class="line">154</div><div class="line">155</div><div class="line">156</div><div class="line">157</div><div class="line">158</div><div class="line">159</div><div class="line">160</div><div class="line">161</div><div class="line">162</div><div class="line">163</div><div class="line">164</div><div class="line">165</div><div class="line">166</div><div class="line">167</div><div class="line">168</div><div class="line">169</div><div class="line">170</div><div class="line">171</div></pre></td><td class="code"><pre><div class="line">public class RedisQueue&lt;T&gt; &#123;</div><div class="line">    private RedisTemplate redisTemplate;</div><div class="line">    private String key;</div><div class="line">    private int cap = Short.MAX_VALUE;//最大阻塞的容量，超过容量将会导致清空旧数据</div><div class="line">    private byte[] rawKey;</div><div class="line">    private RedisConnectionFactory factory;</div><div class="line">    private RedisConnection connection;//for blocking</div><div class="line">    private BoundListOperations&lt;String, T&gt; listOperations;//noblocking</div><div class="line">    private Lock lock = new ReentrantLock();//基于底层IO阻塞考虑</div><div class="line">    private QueueListener listener;//异步回调</div><div class="line">    private Thread listenerThread;</div><div class="line">    private boolean isClosed = false;</div><div class="line">    //组塞10分钟</div><div class="line">    private int  timeout = 600;</div><div class="line">    //休息时间</div><div class="line">    private int sleepTime = 1000;</div><div class="line">    //获取为null 次数</div><div class="line">    private int failCount = 30;</div><div class="line">    public void setRedisTemplate(RedisTemplate redisTemplate) &#123;</div><div class="line">        this.redisTemplate = redisTemplate;</div><div class="line">    &#125;</div><div class="line">    public void setListener(QueueListener listener) &#123;</div><div class="line">        this.listener = listener;</div><div class="line">    &#125;</div><div class="line">    public void setKey(String key) &#123;</div><div class="line">        this.key = key;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    /**</div><div class="line">     * 启动监听</div><div class="line">     * @throws Exception</div><div class="line">     */</div><div class="line">    public void start() throws Exception &#123;</div><div class="line">        factory = redisTemplate.getConnectionFactory();</div><div class="line">        connection = RedisConnectionUtils.getConnection(factory);</div><div class="line">        rawKey = redisTemplate.getKeySerializer().serialize(key);</div><div class="line">        listOperations = redisTemplate.boundListOps(key);</div><div class="line">        if(listener != null)&#123;</div><div class="line">            listenerThread = new ListenerThread();</div><div class="line">            listenerThread.setDaemon(false);</div><div class="line">            listenerThread.start();</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line"></div><div class="line">    /**</div><div class="line">     * blocking</div><div class="line">     * 队列尾部取数据</div><div class="line">     * @return</div><div class="line">     */</div><div class="line">    public T takeFromTail(int timeout) throws InterruptedException&#123;</div><div class="line">        lock.lockInterruptibly();</div><div class="line">        try&#123;</div><div class="line">            List&lt;byte[]&gt; results = connection.bRPop(timeout, rawKey);</div><div class="line">            if(CollectionUtils.isEmpty(results))&#123;</div><div class="line">                return null;</div><div class="line">            &#125;</div><div class="line">            return (T)redisTemplate.getValueSerializer().deserialize(results.get(1));</div><div class="line">        &#125;finally&#123;</div><div class="line">            lock.unlock();</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public T takeFromTail() throws InterruptedException&#123;</div><div class="line">        return takeFromTail(timeout);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    /**</div><div class="line">     * 从队列的头，插入</div><div class="line">     */</div><div class="line">    public void pushFromHead(T value)&#123;</div><div class="line">        listOperations.leftPush(value);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public void pushFromTail(T value)&#123;</div><div class="line">        listOperations.rightPush(value);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    /**</div><div class="line">     * 队尾取出</div><div class="line">     */</div><div class="line">    public T removeFromHead()&#123;</div><div class="line">        return listOperations.leftPop();</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public T removeFromTail()&#123;</div><div class="line">        return listOperations.rightPop();</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    /**</div><div class="line">     * 队尾取出增加超时时间</div><div class="line">     */</div><div class="line">    public T takeFromHead(int timeout) throws InterruptedException&#123;</div><div class="line">        lock.lockInterruptibly();</div><div class="line">        try&#123;</div><div class="line">            List&lt;byte[]&gt; results = connection.bLPop(timeout, rawKey);</div><div class="line">            if(CollectionUtils.isEmpty(results))&#123;</div><div class="line">                return null;</div><div class="line">            &#125;</div><div class="line">            return (T)redisTemplate.getValueSerializer().deserialize(results.get(1));</div><div class="line">        &#125;catch (Exception e)&#123;</div><div class="line">            System.out.println(e);</div><div class="line">            log.error(&quot;get the value fail!&quot;,e);</div><div class="line">            return null;</div><div class="line">        &#125;</div><div class="line">        finally&#123;</div><div class="line">            lock.unlock();</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public T takeFromHead() throws InterruptedException&#123;</div><div class="line">        return takeFromHead(timeout);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public void destroy() throws Exception &#123;</div><div class="line">        if(isClosed)&#123;</div><div class="line">            return;</div><div class="line">        &#125;</div><div class="line">        shutdown();</div><div class="line">        RedisConnectionUtils.releaseConnection(connection, factory);</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    private void shutdown()&#123;</div><div class="line">        try&#123;</div><div class="line">            listenerThread.interrupt();</div><div class="line">        &#125;catch(Exception e)&#123;</div><div class="line">            //注销失败</div><div class="line">            log.error(&quot;注销失败!&quot;,e);</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    class ListenerThread extends Thread &#123;</div><div class="line">        int count = 0;</div><div class="line">        @Override</div><div class="line">        public void run()&#123;</div><div class="line">            try&#123;</div><div class="line">                while(true)&#123;</div><div class="line">                    //超过一定次数 休眠一段时间再去获取信息</div><div class="line">                    if(count &gt; failCount)&#123;</div><div class="line">                        Thread.sleep(sleepTime);</div><div class="line">                        count = 0;</div><div class="line">                    &#125;</div><div class="line">                    log.info(&quot;开始消费!&quot;);</div><div class="line">                    T value = takeFromHead();</div><div class="line">                    log.info((String)value);</div><div class="line">                    //逐个执行</div><div class="line">                    if(value != null)&#123;</div><div class="line">                        try&#123;</div><div class="line">                            listener.onMessage(value);</div><div class="line">                        &#125;catch(Exception e)&#123;</div><div class="line">                            log.error(&quot;处理消息错误!&quot;,e);</div><div class="line">                        &#125;</div><div class="line">                    &#125;else&#123;</div><div class="line">                        count ++;</div><div class="line">                    &#125;</div><div class="line">                &#125;</div><div class="line">            &#125;catch(Exception e)&#123;</div><div class="line">                //处理消息错误</div><div class="line">                log.error(&quot;线程获取消息错误!&quot;,e);</div><div class="line">            &#125;</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public boolean equals(Object obj) &#123;</div><div class="line">        if (obj instanceof RedisQueue) &#123;</div><div class="line">            RedisQueue queue = (RedisQueue) obj;</div><div class="line">            return queue.key.equals(this.key);</div><div class="line">        &#125;</div><div class="line">        return super.equals(obj);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>最后在Spring上下文中将注入，大功告成。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">&lt;bean id=&quot;initializeQueue&quot; class=&quot;com.clouder.redis.InitializeQueue&quot;&gt;</div><div class="line">        &lt;property name=&quot;listener&quot; ref=&quot;redisQueueListener&quot;&gt;&lt;/property&gt;</div><div class="line">        &lt;property name=&quot;redisTemplate&quot; ref=&quot;redisTemplate&quot;&gt;&lt;/property&gt;</div><div class="line">    &lt;/bean&gt;</div></pre></td></tr></table></figure>
+<p>上述就是spring中整合redis list实现消息队列的过程。总结一下，创建一个队列初始化类注入spring上下文中随spring启动创建实例，初始化类中根据要监听的队列名创建队列实例，RedisQueue实例中启动后台线程从redis list中取出消息调用redis监听器的onMessage方法。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2017/07/23/redis-list/" data-id="cj5g6bus800045b2magafyazm" class="article-share-link">Share</a>
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/redis/">redis</a></li></ul>
+
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+  
+    <a href="/2017/07/09/weak-gc/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">weakHashMap与GC</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签</h3>
+    <div class="widget">
+      <ul class="tag-list"><li class="tag-list-item"><a class="tag-list-link" href="/tags/guava/">guava</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/java/">java</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/jvm/">jvm</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/redis/">redis</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签云</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/guava/" style="font-size: 10px;">guava</a> <a href="/tags/java/" style="font-size: 20px;">java</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/设计模式/" style="font-size: 15px;">设计模式</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">归档</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">最新文章</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2017/07/23/redis-list/">redis消息队列实现</a>
+          </li>
+        
+          <li>
+            <a href="/2017/07/09/weak-gc/">weakHashMap与GC</a>
+          </li>
+        
+          <li>
+            <a href="/2017/07/04/obejct-struct/">对象内存布局</a>
+          </li>
+        
+          <li>
+            <a href="/2017/07/03/new-object-1/">jvm源码分析之内存分配</a>
+          </li>
+        
+          <li>
+            <a href="/2017/04/12/JDK-Dynamic-Proxy/">JDK动态代理</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      &copy; 2017 zhusheng<br>
+      Powered by <a href="http://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+  <link rel="stylesheet" href="/fancybox/jquery.fancybox.css">
+  <script src="/fancybox/jquery.fancybox.pack.js"></script>
+
+
+<script src="/js/script.js"></script>
+
+  </div>
+</body>
+</html>

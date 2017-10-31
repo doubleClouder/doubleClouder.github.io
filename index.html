@@ -68,6 +68,80 @@
       <div class="outer">
         <section id="main">
   
+    <article id="post-dynamic-proxy" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2017/09/24/dynamic-proxy/" class="article-date">
+  <time datetime="2017-09-24T03:07:38.000Z" itemprop="datePublished">2017-09-24</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2017/09/24/dynamic-proxy/">ASM初探</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>   随着aop技术的兴起，动态代理得到越来越广泛的应用。下面我们就来聊一聊在java中实现动态代理都有哪些方式，关于动态代理的介绍可参考博主之前的一篇文章，其中介绍了一下JDK动态代理的使用方法和原理简介<br><a href="http://www.clouder.top/2017/04/12/JDK-Dynamic-Proxy/" target="_blank" rel="external">JDK动态代理</a><br>。动态代理说白了就是再程序运行期间，动态的改变一个类的行为或者生成一个新的类。我们知道JVM通过字节码的二进制信息加载类的，类的初始化过程第一步就是把class文件里所代表的静态存储结构转化为方法区的运行数据结构，当然加载过程只会进行一次。所以要动态的改变类的行为就需要我们遵循JVM的规范生成新的字节码。<br><img src="http://osjt45oaj.bkt.clouddn.com/dynamicproxy.png" alt=""><br>上图是网上别人画的一个动态生成类的原理图，很清晰的展示了动态代理的基本原理，在运行期生成新的字节码，然后类加载器完成类的初始化过程得到新类。</p>
+<h2 id="ASM"><a href="#ASM" class="headerlink" title="ASM"></a>ASM</h2><p>下面我们来看一下如何在运行时期可以按照Java虚拟机规范对class文件的组织规则生成对应的二进制字节码。其实JDK提供了sun.misc.ProxyGenerator.generateProxyClass(String proxyName,class[] interfaces)底层方法来产生动态代理的字节码。<br>除此之外，但这种实现现在已开源的解决方案有ASM和javaassist。</p>
+<p>ASM是一个Java字节码操控框架。ASM从class文件载入后，可以分析类信息，改变类的行为，也能够根据要求生成新类。它能够以二进制形式修改已有类或者动态生成类。ASM可以直接产生二进制class文件，也可以在类被加载入Java虚拟机之前动态改变类行为。</p>
+<p>ASM在创建class字节码的过程中，操纵是底层JVM的汇编指令，这要求ASM使用者要对class组织结构和JVM汇编指令有一定的了解。对于这些内容可以参考《JAVA虚拟机规范》。asm字节码增强技术主要是用来反射的时候提升性能的，如果单纯用jdk的反射调用，性能是非常低下的，而使用字节码增强技术后反射调用的时间已经基本可以与直接调用相当了。asm是一个轻量级的字节码框架，他的jar包仅几十k，它的核心类有以下几个：</p>
+<ul>
+<li>ClassReader:根据字节码的规则解析编译过的class文件。</li>
+<li>ClassWriter:对已解析的类进行增强，比如说修改类名、属性以及方法，以及生成新的类的字节码文件。</li>
+<li>ClassAdapter:该类也实现了ClassVisitor接口，它将对它的方法调用委托给另一个ClassVisitor对象。</li>
+</ul>
+<p>我们可以先来看一下字节码的结构，这样可以很容易的理解ASM到底做了什么以及它为什么要这样设计。<br><img src="http://osjt45oaj.bkt.clouddn.com/asm02.png" alt=""><br>关于上图中各部分的含义看名字也能一目了然，这里重点说一下常量池部分，一个类的常量池占了它本身的绝大部分空间，常量池里除了包括字符串常量和数值常量，还包含指向字段和方法的引用。</p>
+<p>编译后的字节码文件与源文件的不同的在于：<br>编译后的 java 类仅仅只 述一个类信息，但是一个 java 源文件可以包含几个java 类 ；<br>编译后的 java 类不包含注释；<br>编译后的 java 类不包含 package 和 import段，因此，在编译后的类中，所有的类型名称都必须使用全路径；<br>编译后的 java 类包含一个常量池段 。（asm隐藏了与常量池相关的细节）</p>
+<p>字节码操作工具有：</p>
+<ul>
+<li>BCEL：Byte Code Engineering Library (BCEL)，这是Apache Software Foundation 的Jakarta 项目的一部分。BCEL是 Java classworking 最广泛使用的一种框架,它可以让您深入 JVM 汇编语言进行类操作的细节。BCEL与Javassist 有不同的处理字节码方法，BCEL在实际的JVM 指令层次上进行操作(BCEL拥有丰富的JVM 指令级支持)而Javassist 所强调的源代码级别的工作。</li>
+<li>JBET：通过JBET(Java Binary Enhancement Tool )的API可对Class文件进行分解，重新组合，或被编辑。JBET也可以创建新的Class文件。JBET用一种结构化的方式来展现Javabinary (.class)文件的内容，并且可以很容易的进行修改。</li>
+<li>javaassist：直接使用java编码，不需要了解jvm指令，其工作方式与 JVM 类装载器非常相似。</li>
+</ul>
+<p>ASM的优势在于：</p>
+<ul>
+<li>ASM 具有简单、设计良好的 API，这些 API 易于使用；</li>
+<li>ASM 有非常良好的开发文档，以及可以帮助简化开发的 Eclipse 插件；</li>
+<li>ASM 支持 Java 6(ASM3)、Java7(ASM4)、Java(ASM5)；</li>
+<li>ASM 很小、很快、很健壮；</li>
+<li>ASM 有很大的用户群，可以帮助新手解决开发过程中遇到的问题；</li>
+<li>ASM 的开源许可可以让你几乎以任何方式使用它；</li>
+</ul>
+<p>不说废话了，下面来看一下ASM的核心接口，ClassVisitor。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div></pre></td><td class="code"><pre><div class="line">public interface ClassVisitor &#123;</div><div class="line">    void visit(int var1, int var2, String var3, String var4, String var5, String[] var6);</div><div class="line"> </div><div class="line">    void visitSource(String var1, String var2);</div><div class="line"> </div><div class="line">    void visitOuterClass(String var1, String var2, String var3);</div><div class="line"> </div><div class="line">    AnnotationVisitor visitAnnotation(String var1, boolean var2);</div><div class="line"> </div><div class="line">    void visitAttribute(Attribute var1);</div><div class="line"> </div><div class="line">    void visitInnerClass(String var1, String var2, String var3, int var4);</div><div class="line"> </div><div class="line">    FieldVisitor visitField(int var1, String var2, String var3, String var4, Object var5);</div><div class="line"> </div><div class="line">    MethodVisitor visitMethod(int var1, String var2, String var3, String var4, String[] var5);</div><div class="line"> </div><div class="line">    void visitEnd();</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>ClassVisitor把类的字节码所包含的信息组织成一个树状结构，在访问类结构中简单的段时， 是通过调用一个独立的方法来实现的，该方法的参数就是该段相关的内容，该方法的返回值 为 void。对长度任意并且较复杂的段进行访问时，是通过一个初始化方法返回一个辅助的 visitor 接口来实现，例如 visitAnnotation，visitField 以及 visitMethod，它们都返回与之对应 的接口 AnnotationVisitor，FieldVisitor 以及 MethodVisitor。</p>
+<p>对 ClassVisitor 接口中方法的调用必须遵循下面文档定义的顺序 ：<br>visit visitSource? visitOuterClass? ( visitAnnotation | visitAttribute )*( visitInnerClass | visitField | visitMethod )<em>  visitEnd (?表示至多1次，\</em>表示任意次数)<br>这其实很好理解，类的字节码是按照一定规则排列的。同样，对MethodVisitor接口中方法的调用必须遵循下面文档定义的顺序：<br>( visitTryCatchBlock | visitLabel | visitFrame | visitXxxInsn | visitLocalVariable | visitLineNumber )*<br>visitMaxs )?<br>visitEnd</p>
+<p>解析一个已存在的类仅需要ClassReader这个组件，它对字节码的每一段解析都可以看成产生一个事件。ClassWriter实现了ClassVisitor接口，实现了ClassVisitor接口中每个visitxx方法，当捕获对应事件时，可以将字节码写到指定位置，ASM是可以看成一个观察者模式的实现，ClassReader可以接收一个ClassWriter作为它的观察者，当ClassReader解析字节码的每一段产生一个事件时，会触发ClassWriter中对应的visitxx方法。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">byte[] b1 = ...;ClassWriter cw = new ClassWriter();</div><div class="line">ClassReader cr = new ClassReader(b1);cr.accept(cw, 0);byte[] b2 = cw.toByteArray();</div></pre></td></tr></table></figure>
+<p>上面的代码复制b1创建一个新的类b2,实际上是将一个字节数组复制到另一个字节数组。这个过程可能看起来意义不大，但是如果我们加上一个新的组件ClassAdapter那就会变得很有趣。ClassAdapter也是实现了ClassVisitor接口，它相当于一个事件过滤器，通过自定义visitxx方法，同样再获取ClassReader产生的事件时执行相应的visitxx方法，达到按照开发者意愿修改字节码的目的，最后将事件传给ClassWriter将修改后的字节码落地。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">public class ChangeVersionAdapter extends ClassAdapter &#123;public ChangeVersionAdapter(ClassVisitor cv) &#123; super(cv);&#125;@Overridepublic void visit(int version, int access, String name,String signature, String superName, String[] interfaces) &#123;cv.visit(V1_5, access, name, signature, superName, interfaces); &#125;&#125;</div></pre></td></tr></table></figure>
+<p>上面代码中自定义了一个ClassAdapter,它只重写了visit方法，在visit方法中修改了类的版本号。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">byte[] b1 = ...ClassReader cr = new ClassReader(b1);ClassWriter cw = new ClassWriter(cr, 0);ChangeVersionAdapter ca = new ChangeVersionAdapter(cw); cr.accept(ca, 0);byte[] b2 = cw.toByteArray();</div></pre></td></tr></table></figure>
+<p>上面代码中ca只在字节码的version段触发了一个修改类版本号的动作，剩余部分都直接转发给ClassWriter。</p>
+<p>ClassAdapter是事件的转发者，转化过程形成一条classReader-classAdapter-classWriter的转换链，但一个转换链条没必要是线性的，更复杂的情况是你可以编写一个 ClassVisitor，然后同时转发所有的方法调用给多个 ClassVisitor。<br><img src="http://osjt45oaj.bkt.clouddn.com/asm3.png" alt=""><br>这样需要开发者在整体性能和低耦合之间做一个权衡。上面就是asm的主要组件及大致原理，它实际上相当于做了一个字节码层面的aop,基于观察者模式的事件触发，原理很简单，掌握了它的规则，使用起来也并不难。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2017/09/24/dynamic-proxy/" data-id="cj9f1eats00006d2muelwx3g4" class="article-share-link">Share</a>
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+  
     <article id="post-redis-list" class="article article-type-post" itemscope itemprop="blogPost">
   <div class="article-meta">
     <a href="/2017/07/23/redis-list/" class="article-date">
@@ -106,7 +180,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/23/redis-list/" data-id="cj5g6bus800045b2magafyazm" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/23/redis-list/" data-id="cj9f1eau600066d2mqv2uxvet" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/redis/">redis</a></li></ul>
@@ -175,7 +249,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cj5g6buse00095b2m7lt78oqw" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cj9f1eaue000c6d2mmdn6ocko" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -236,7 +310,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cj5g6busb00055b2mmapmmiue" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cj9f1eau500056d2mtk0nrgar" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/jvm/">jvm</a></li></ul>
@@ -307,7 +381,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cj5g6busd00085b2m7ta9z7vj" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cj9f1eatw00016d2mg73quhvu" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -350,7 +424,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cj5g6burv00005b2mfc8r8rki" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cj9f1eaty00026d2mtf1u4h93" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -390,7 +464,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cj5g6busi000c5b2mh65q7qq8" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cj9f1eaub000a6d2mtugd5h89" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -433,7 +507,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cj5g6bus700035b2m7lmnk6qg" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cj9f1eaua00096d2mwc091ime" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>
@@ -481,7 +555,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cj5g6bus200015b2m5rxi5fo4" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cj9f1eau300046d2m6pokaiuy" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -524,7 +598,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">归档</h3>
     <div class="widget">
-      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
     </div>
   </div>
 
@@ -535,6 +609,10 @@
     <h3 class="widget-title">最新文章</h3>
     <div class="widget">
       <ul>
+        
+          <li>
+            <a href="/2017/09/24/dynamic-proxy/">ASM初探</a>
+          </li>
         
           <li>
             <a href="/2017/07/23/redis-list/">redis消息队列实现</a>
@@ -550,10 +628,6 @@
         
           <li>
             <a href="/2017/07/03/new-object-1/">jvm源码分析之内存分配</a>
-          </li>
-        
-          <li>
-            <a href="/2017/04/12/JDK-Dynamic-Proxy/">JDK动态代理</a>
           </li>
         
       </ul>

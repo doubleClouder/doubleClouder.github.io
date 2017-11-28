@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>kafka学习笔记（一）kafka简介 | clouder的博客</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="description" content="前言   kafka最初有linkedIn公司研发，2011年开源，12年成为Apache软件基金会顶级开源项目。kafka是一种分布式的MQ系统，越来越来的公司使用kafka作为消息中间件，因为kafka有如下不可比拟的特性：  强大的处理能力，kafka是基于磁盘的消息存储，并且以顺序读写访问磁盘，避免了随进读写的性能问题，因此，面对海量消息，kafka也可以高效的存储和查询。 kafka消息">
+<meta property="og:type" content="article">
+<meta property="og:title" content="kafka学习笔记（一）kafka简介">
+<meta property="og:url" content="http://yoursite.com/2017/11/19/kafka-one/index.html">
+<meta property="og:site_name" content="clouder的博客">
+<meta property="og:description" content="前言   kafka最初有linkedIn公司研发，2011年开源，12年成为Apache软件基金会顶级开源项目。kafka是一种分布式的MQ系统，越来越来的公司使用kafka作为消息中间件，因为kafka有如下不可比拟的特性：  强大的处理能力，kafka是基于磁盘的消息存储，并且以顺序读写访问磁盘，避免了随进读写的性能问题，因此，面对海量消息，kafka也可以高效的存储和查询。 kafka消息">
+<meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/kafka-1.png">
+<meta property="og:updated_time" content="2017-11-28T02:50:15.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="kafka学习笔记（一）kafka简介">
+<meta name="twitter:description" content="前言   kafka最初有linkedIn公司研发，2011年开源，12年成为Apache软件基金会顶级开源项目。kafka是一种分布式的MQ系统，越来越来的公司使用kafka作为消息中间件，因为kafka有如下不可比拟的特性：  强大的处理能力，kafka是基于磁盘的消息存储，并且以顺序读写访问磁盘，避免了随进读写的性能问题，因此，面对海量消息，kafka也可以高效的存储和查询。 kafka消息">
+<meta name="twitter:image" content="http://osjt45oaj.bkt.clouddn.com/kafka-1.png">
+  
+    <link rel="alternate" href="/atom.xml" title="clouder的博客" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png">
+  
+  
+    <link href="//fonts.googleapis.com/css?family=Source+Code+Pro" rel="stylesheet" type="text/css">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  
+
+</head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">clouder的博客</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">在学习的道路上不断成长。。</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+          <a id="nav-rss-link" class="nav-icon" href="/atom.xml" title="RSS Feed"></a>
+        
+        <a id="nav-search-btn" class="nav-icon" title="搜索"></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://yoursite.com"></form>
+      </div>
+    </div>
+  </div>
+</header>
+      <div class="outer">
+        <section id="main"><article id="post-kafka-one" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2017/11/19/kafka-one/" class="article-date">
+  <time datetime="2017-11-19T08:24:59.000Z" itemprop="datePublished">2017-11-19</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="article-title" itemprop="name">
+      kafka学习笔记（一）kafka简介
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>   kafka最初有linkedIn公司研发，2011年开源，12年成为Apache软件基金会顶级开源项目。kafka是一种分布式的MQ系统，越来越来的公司使用kafka作为消息中间件，因为kafka有如下不可比拟的特性：</p>
+<ul>
+<li>强大的处理能力，kafka是基于磁盘的消息存储，并且以顺序读写访问磁盘，避免了随进读写的性能问题，因此，面对海量消息，kafka也可以高效的存储和查询。</li>
+<li>kafka消息分区的方式提高并发能力，而且支持在线分区，易拓展。</li>
+<li>kafka支持为每个分区创建多个副本，其中只有一个leader副本负责读写，其他副本负责有leader同步，副本会均匀的分布在集群的broker上，容灾能力优秀。</li>
+<li>kafka支持批量读写消息，网络利用率高</li>
+</ul>
+<p>在高并发的系统中，服务拆分是为了突破性能瓶颈的一个有效手段，但是各服务之间数据传输的实时性和可靠性成为新的挑战，kafka体现了它的强大之处。</p>
+<h1 id="原理简介"><a href="#原理简介" class="headerlink" title="原理简介"></a>原理简介</h1><p>了解kafka到底如何工作的之前，我们先来了解一些概念。</p>
+<ul>
+<li><p>消息:  最基本的数据单元，mafka中的消息由key和value组成。key的作用是根据一定的策略，将消息路由到指定的分区，key可以是null；value部分则是真正的消息体，producer会批量发送消息到kafka。</p>
+</li>
+<li><p>topic&amp;partition: 用于存储消息的逻辑概念，宏观上，kafka就是生产者推消息到topic，消费者poll其中的消息进行消费。每个topic划分成多个分区，kafka是以磁盘存储消息的，partition是消息物理上的分组，它实际上是topic下的一个存储目录，目录下的消息存储方式决定了partition是一个有序的队列。kafka保证同一partition的消息是有序的，但不保证partition之前的顺序。同一topic的不同分区会分配再不同的broker上，partition的命名规则为topic名+分区序号。分区是kafka水平拓展的基础，我们可以通过增加服务器并再其上分配partion的方式来增加kafka的并行处理能力。</p>
+</li>
+<li><p>segment partition由多个segment组成，物理上segment是partition目录上的真是存储消息的文件。segment file由两部分组成：index file和data file，segement文件命名规则是partition下的第一个segment从0开始，后续的每个offset是前一个segment的最后一条消息的offerset值。数值为64位long大小，前面用0填充。</p>
+</li>
+</ul>
+<p><img src="http://osjt45oaj.bkt.clouddn.com/kafka-1.png" alt=""><br>上图是segment的index文件与data文件的映射关系，当要查找partition中offset为x值的消息时，先通过二分查找定位到x所在segment的index文件，然后在通过index中的稀疏索引定位到消息在long中偏移量。具体可参考<a href="https://tech.meituan.com/kafka-fs-design-theory.html" target="_blank" rel="external">Kafka文件存储机制那些事
+</a></p>
+<p>kafka采用顺序磁盘I/O,所以指向最新的segment追加消息，当超出segment大小限制时，kafka会创建新的segement。正是由于kafka基于磁盘的消息存储，所以无论消费者是否已经拉取消息，kafka都会一直保留这些消息，但是为了节省磁盘空间，kafka必须实现周期性地删除旧的消息，kafka实现了两种保留策略，一是根据消息保留的时间，当消息在kafka中保留超过指定时间，可以被删除，另一种是指定topic中消息的数据量，超过一定量删除旧的消息，kafka会启动一个后台线程，定时检查topic中的消息是否可以删除，当达到条件时，直接删除顺序最前的segment就可以了。</p>
+<ul>
+<li><p>副本</p>
+<p>kafka中partition可以有多个副本，是对消息的一本备份策略。每个分区至少有一个副本，当分区中只有一个副本时，就只有leader副本。每个分区的副本集合都会选举出一个副本作为leader,选举策略采用多数同意的方式，所以kafka的副本允许N-1的不存活。</p>
+</li>
+<li><p>ISR集合</p>
+</li>
+</ul>
+<p>ISR(In-Sync Replica)集合表示目前可用的分区副本集。ISR集合中的副本必须保证两个条件：1.维持与zk的连接。2.最后一条消息的offset与leader的差值不超过指定阀值。有两个参数可以决定是否将ISR移除ISR集合：replica.lag.max.messages和replica.lag.time.max，前者表明副本offset落后leader offset的最大消息数，后者表示follower向leader发送请求的最大时间间隔。如果再一定的周期内follower不能追赶上leader,可能是由于I/O问题导致follower追加复制消息慢于leader拉取速度，这种属于慢副本。还有一种是卡住副本，由于GC或者副本死亡导致follower停止发送复制请求。</p>
+<ul>
+<li>HW&amp;LEO</li>
+</ul>
+<p>HW(high watermark)表示消费者拉取消息的高水位，它标记了一个特殊的offset值，意思就是消费者只能拉取HW之前的消息，HW之后的消息对消费者不可见。当ISR集合中全部的follower都拉取的HW指定消息进行同步后，leader会递增HW的值。</p>
+<p>LEO(log end offset)是当前副本的最后一条消息的offset。HW和LEO这两个值都是和ISR集合相关的，引用HW是为了避免消息提交后，follower还未拉取消息，leader跑的过快，此时leader宕机导致的消息丢失问题。但ISR集合有效避免了消息同步复制带来的延时问题，当Followe副本延迟过高时，leader副本被踢出ISR集合，消息已然可以快速提交，当leader宕机时，会选举ISR集合中的follower作为新的leader,这新的leader包含hw之前的所有消息，这样既保证的消息不会丢失，也解决的消息同步带来的影响。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2017/11/19/kafka-one/" data-id="cjaj0z34z0003052m4e9s1mfq" class="article-share-link">Share</a>
+      
+      
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+  
+    <a href="/2017/09/24/dynamic-proxy/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">ASM初探</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签</h3>
+    <div class="widget">
+      <ul class="tag-list"><li class="tag-list-item"><a class="tag-list-link" href="/tags/guava/">guava</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/java/">java</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/jvm/">jvm</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/redis/">redis</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签云</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/guava/" style="font-size: 15px;">guava</a> <a href="/tags/java/" style="font-size: 20px;">java</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/设计模式/" style="font-size: 15px;">设计模式</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">归档</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">最新文章</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2017/11/19/kafka-one/">kafka学习笔记（一）kafka简介</a>
+          </li>
+        
+          <li>
+            <a href="/2017/09/24/dynamic-proxy/">ASM初探</a>
+          </li>
+        
+          <li>
+            <a href="/2017/07/23/redis-list/">redis消息队列实现</a>
+          </li>
+        
+          <li>
+            <a href="/2017/07/14/RateLimiter/">接口限流之RateLimiter</a>
+          </li>
+        
+          <li>
+            <a href="/2017/07/09/weak-gc/">weakHashMap与GC</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      &copy; 2017 zhusheng<br>
+      Powered by <a href="http://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+  <link rel="stylesheet" href="/fancybox/jquery.fancybox.css">
+  <script src="/fancybox/jquery.fancybox.pack.js"></script>
+
+
+<script src="/js/script.js"></script>
+
+  </div>
+</body>
+</html>

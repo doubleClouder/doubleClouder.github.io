@@ -68,6 +68,75 @@
       <div class="outer">
         <section id="main">
   
+    <article id="post-kafka-one" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2017/11/19/kafka-one/" class="article-date">
+  <time datetime="2017-11-19T08:24:59.000Z" itemprop="datePublished">2017-11-19</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2017/11/19/kafka-one/">kafka学习笔记（一）kafka简介</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>   kafka最初有linkedIn公司研发，2011年开源，12年成为Apache软件基金会顶级开源项目。kafka是一种分布式的MQ系统，越来越来的公司使用kafka作为消息中间件，因为kafka有如下不可比拟的特性：</p>
+<ul>
+<li>强大的处理能力，kafka是基于磁盘的消息存储，并且以顺序读写访问磁盘，避免了随进读写的性能问题，因此，面对海量消息，kafka也可以高效的存储和查询。</li>
+<li>kafka消息分区的方式提高并发能力，而且支持在线分区，易拓展。</li>
+<li>kafka支持为每个分区创建多个副本，其中只有一个leader副本负责读写，其他副本负责有leader同步，副本会均匀的分布在集群的broker上，容灾能力优秀。</li>
+<li>kafka支持批量读写消息，网络利用率高</li>
+</ul>
+<p>在高并发的系统中，服务拆分是为了突破性能瓶颈的一个有效手段，但是各服务之间数据传输的实时性和可靠性成为新的挑战，kafka体现了它的强大之处。</p>
+<h1 id="原理简介"><a href="#原理简介" class="headerlink" title="原理简介"></a>原理简介</h1><p>了解kafka到底如何工作的之前，我们先来了解一些概念。</p>
+<ul>
+<li><p>消息:  最基本的数据单元，mafka中的消息由key和value组成。key的作用是根据一定的策略，将消息路由到指定的分区，key可以是null；value部分则是真正的消息体，producer会批量发送消息到kafka。</p>
+</li>
+<li><p>topic&amp;partition: 用于存储消息的逻辑概念，宏观上，kafka就是生产者推消息到topic，消费者poll其中的消息进行消费。每个topic划分成多个分区，kafka是以磁盘存储消息的，partition是消息物理上的分组，它实际上是topic下的一个存储目录，目录下的消息存储方式决定了partition是一个有序的队列。kafka保证同一partition的消息是有序的，但不保证partition之前的顺序。同一topic的不同分区会分配再不同的broker上，partition的命名规则为topic名+分区序号。分区是kafka水平拓展的基础，我们可以通过增加服务器并再其上分配partion的方式来增加kafka的并行处理能力。</p>
+</li>
+<li><p>segment partition由多个segment组成，物理上segment是partition目录上的真是存储消息的文件。segment file由两部分组成：index file和data file，segement文件命名规则是partition下的第一个segment从0开始，后续的每个offset是前一个segment的最后一条消息的offerset值。数值为64位long大小，前面用0填充。</p>
+</li>
+</ul>
+<p><img src="http://osjt45oaj.bkt.clouddn.com/kafka-1.png" alt=""><br>上图是segment的index文件与data文件的映射关系，当要查找partition中offset为x值的消息时，先通过二分查找定位到x所在segment的index文件，然后在通过index中的稀疏索引定位到消息在long中偏移量。具体可参考<a href="https://tech.meituan.com/kafka-fs-design-theory.html" target="_blank" rel="external">Kafka文件存储机制那些事
+</a></p>
+<p>kafka采用顺序磁盘I/O,所以指向最新的segment追加消息，当超出segment大小限制时，kafka会创建新的segement。正是由于kafka基于磁盘的消息存储，所以无论消费者是否已经拉取消息，kafka都会一直保留这些消息，但是为了节省磁盘空间，kafka必须实现周期性地删除旧的消息，kafka实现了两种保留策略，一是根据消息保留的时间，当消息在kafka中保留超过指定时间，可以被删除，另一种是指定topic中消息的数据量，超过一定量删除旧的消息，kafka会启动一个后台线程，定时检查topic中的消息是否可以删除，当达到条件时，直接删除顺序最前的segment就可以了。</p>
+<ul>
+<li><p>副本</p>
+<p>kafka中partition可以有多个副本，是对消息的一本备份策略。每个分区至少有一个副本，当分区中只有一个副本时，就只有leader副本。每个分区的副本集合都会选举出一个副本作为leader,选举策略采用多数同意的方式，所以kafka的副本允许N-1的不存活。</p>
+</li>
+<li><p>ISR集合</p>
+</li>
+</ul>
+<p>ISR(In-Sync Replica)集合表示目前可用的分区副本集。ISR集合中的副本必须保证两个条件：1.维持与zk的连接。2.最后一条消息的offset与leader的差值不超过指定阀值。有两个参数可以决定是否将ISR移除ISR集合：replica.lag.max.messages和replica.lag.time.max，前者表明副本offset落后leader offset的最大消息数，后者表示follower向leader发送请求的最大时间间隔。如果再一定的周期内follower不能追赶上leader,可能是由于I/O问题导致follower追加复制消息慢于leader拉取速度，这种属于慢副本。还有一种是卡住副本，由于GC或者副本死亡导致follower停止发送复制请求。</p>
+<ul>
+<li>HW&amp;LEO</li>
+</ul>
+<p>HW(high watermark)表示消费者拉取消息的高水位，它标记了一个特殊的offset值，意思就是消费者只能拉取HW之前的消息，HW之后的消息对消费者不可见。当ISR集合中全部的follower都拉取的HW指定消息进行同步后，leader会递增HW的值。</p>
+<p>LEO(log end offset)是当前副本的最后一条消息的offset。HW和LEO这两个值都是和ISR集合相关的，引用HW是为了避免消息提交后，follower还未拉取消息，leader跑的过快，此时leader宕机导致的消息丢失问题。但ISR集合有效避免了消息同步复制带来的延时问题，当Followe副本延迟过高时，leader副本被踢出ISR集合，消息已然可以快速提交，当leader宕机时，会选举ISR集合中的follower作为新的leader,这新的leader包含hw之前的所有消息，这样既保证的消息不会丢失，也解决的消息同步带来的影响。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2017/11/19/kafka-one/" data-id="cjaj0z34z0003052m4e9s1mfq" class="article-share-link">Share</a>
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+  
     <article id="post-dynamic-proxy" class="article article-type-post" itemscope itemprop="blogPost">
   <div class="article-meta">
     <a href="/2017/09/24/dynamic-proxy/" class="article-date">
@@ -132,7 +201,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/09/24/dynamic-proxy/" data-id="cja12qyik0003aa2mc1312rpk" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/09/24/dynamic-proxy/" data-id="cjaj0z35b0008052mz1343595" class="article-share-link">Share</a>
       
       
     </footer>
@@ -180,7 +249,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/23/redis-list/" data-id="cja12qyj9000iaa2mnkt4j6j5" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/23/redis-list/" data-id="cjaj0z35l000i052mg108sgm2" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/redis/">redis</a></li></ul>
@@ -241,7 +310,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/14/RateLimiter/" data-id="cja12qyil0004aa2m7cx3rjai" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/14/RateLimiter/" data-id="cjaj0z34u0001052mmmg3i5ou" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>
@@ -310,7 +379,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cja12qyjc000kaa2m1g1egilu" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cjaj0z35o000k052mt68xt4db" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -371,7 +440,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cja12qyj8000gaa2mdd0nhzb1" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cjaj0z35i000d052muqcpy2wz" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/jvm/">jvm</a></li></ul>
@@ -442,7 +511,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cja12qyj4000eaa2ma8ay33sa" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjaj0z35e000b052muh4axq5f" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -485,7 +554,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cja12qyia0000aa2mffbbox1a" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cjaj0z34q0000052mnrhpq3wk" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -525,7 +594,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cja12qyj0000daa2mph6c5zqv" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjaj0z35j000f052mhvfbt62t" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -568,7 +637,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cja12qyin0005aa2m4dq98wc8" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cjaj0z35d000a052mp8t3rbsi" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>
@@ -580,55 +649,11 @@
 
 
   
-    <article id="post-customize-appender" class="article article-type-post" itemscope itemprop="blogPost">
-  <div class="article-meta">
-    <a href="/2017/03/16/customize-appender/" class="article-date">
-  <time datetime="2017-03-16T01:14:55.000Z" itemprop="datePublished">2017-03-16</time>
-</a>
-    
-  </div>
-  <div class="article-inner">
-    
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2017/03/16/customize-appender/">Logger之自定义Appender</a>
-    </h1>
-  
-
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <p>如果现在要将应用中所有的Error级别日志收集到数据库中，你能想到什么办法？比较自然的想法是：1. 在所有输出Error日志的地方增加插入数据库操作。2.开辟程序扫描日志文件，遇到Error日志记录入库。这两种方案前者对代码侵入很大；后者工作量较大，而且无法做到实时同步。那么有没有更简便优雅的方式呢？答案就是本文的标题。现在市面上流行的日志框架主要为log4j和logback,二者实现过程基本相同，我们以Logback为例，看如何实现自定义Appender，logback大致类似。<br>Log4j和Logback主要有三个组件：</p>
-<ul>
-<li>Logger:      负责客户端代码调用，执行error,debug,info,warn等方法。</li>
-<li>Appender:  负责日志的输出，Log4j和Logback都实现了多种不同目标的输出方式，常见的有控制台输出，日志文件输出，socket输出等。</li>
-<li>Layout：     负责日志的格式化。</li>
-</ul>
-<p>下面是应用中logback具体的配置：</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/123.png" alt=""><br>log4j和logback中总存在rootLogger,其他的logger都继承这个rootLogger。logger中的层次用”.”来分隔，比如<br>Logger logger = Logger.getLogger(“A.B”) //这里会新建两个logger实例”A”,”A.B”。”A.B”和”A”是一种继承关系，子logger会父logger及祖辈logger的appender添加到自己logger列表，当然我们可以通过配置打破这种继承关系，这里不做赘述。</p>
-<p>   稍微了解了logback的这种结构，那么自定义Appender的问题就迎刃而解了，我们直接上代码。</p>
-<p> <img src="http://osjt45oaj.bkt.clouddn.com/124.png" alt=""><br> 我们只要在应用启动的时候注入这样一个类，并调用addLogbackAppender()方法，就可以为所有的logger加上一个自定义appender,这样在应用每次输出Error级别日志，就忘数据库中记录。当然并不一定是Error日志，具体的逻辑根据需求定义在getCustomizedLogbackAppender中就万事大吉。</p>
-
-      
-    </div>
-    <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cja12qyif0001aa2mpsnd569c" class="article-share-link">Share</a>
-      
-      
-  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
-
-    </footer>
-  </div>
-  
-</article>
 
 
-  
-
+  <nav id="page-nav">
+    <span class="page-number current">1</span><a class="page-number" href="/page/2/">2</a><a class="extend next" rel="next" href="/page/2/">__('next') &raquo;</a>
+  </nav>
 </section>
         
           <aside id="sidebar">
@@ -659,7 +684,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">归档</h3>
     <div class="widget">
-      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
     </div>
   </div>
 
@@ -670,6 +695,10 @@
     <h3 class="widget-title">最新文章</h3>
     <div class="widget">
       <ul>
+        
+          <li>
+            <a href="/2017/11/19/kafka-one/">kafka学习笔记（一）kafka简介</a>
+          </li>
         
           <li>
             <a href="/2017/09/24/dynamic-proxy/">ASM初探</a>
@@ -685,10 +714,6 @@
         
           <li>
             <a href="/2017/07/09/weak-gc/">weakHashMap与GC</a>
-          </li>
-        
-          <li>
-            <a href="/2017/07/04/obejct-struct/">对象内存布局</a>
           </li>
         
       </ul>

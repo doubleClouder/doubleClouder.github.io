@@ -127,7 +127,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/11/19/kafka-one/" data-id="cjaj0z34z0003052m4e9s1mfq" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/11/19/kafka-one/" data-id="cje5obazf000eus2mgj646vwf" class="article-share-link">Share</a>
       
       
     </footer>
@@ -201,7 +201,109 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/09/24/dynamic-proxy/" data-id="cjaj0z35b0008052mz1343595" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/09/24/dynamic-proxy/" data-id="cje5obaz20005us2m5qjk13u2" class="article-share-link">Share</a>
+      
+      
+    </footer>
+  </div>
+  
+</article>
+
+
+  
+    <article id="post-mybatis-cache" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2017/08/27/mybatis-cache/" class="article-date">
+  <time datetime="2017-08-27T07:10:22.000Z" itemprop="datePublished">2017-08-27</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2017/08/27/mybatis-cache/">mybatis缓存体系</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="Mybatis基本概念"><a href="#Mybatis基本概念" class="headerlink" title="Mybatis基本概念"></a>Mybatis基本概念</h1><p>每当我们使用MyBatis开启一次和数据库的会话，MyBatis会创建出一个SqlSession对象表示一次数据库会话。我们先来看下sqlSession的创建过程:<br><img src="http://osjt45oaj.bkt.clouddn.com/mybatis1.png" alt=""><br>关于mybatis的初始化过程，这里不做探讨，只看下mybatis对数据库的会话过程中涉及的核心对象。</p>
+<ul>
+<li>Configuration     mybatis配置信息（mybatis初始化过程实际就是创建Configuration对象的过程）</li>
+<li>SqlSession        数据库会话</li>
+<li>SqlSessionFactory 数据库会话创建工厂</li>
+<li>Excutor          执行器，调度核心</li>
+<li>StatementHandler     封装了JDBC Statement操作，如设置参数、将Statement结果集转换成List集合。</li>
+<li>MappedStatement   一个<select|update|delete|insert>节点的抽象。</select|update|delete|insert></li>
+<li>BoundSql  动态生成的SQL语句以及相应的参数信息。</li>
+</ul>
+<h1 id="一级缓存"><a href="#一级缓存" class="headerlink" title="一级缓存"></a>一级缓存</h1><p>Mybatis的缓存体系由一级缓存和二级缓存构成，我们先来分析下一级缓存。缓存的意义是显而易见的，可以提高响应速度和降低资源消耗，Mybatis一级缓存的设计初衷也是基于这点。在对数据库的一次会话中，我们有可能会反复地执行完全相同的查询语句，如果不采取一些措施的话，每一次查询都会查询一次数据库,而我们在极短的时间内做了完全相同的查询，那么它们的结果极有可能完全相同，由于查询一次数据库的代价很大，这有可能造成很大的资源浪费。 为了解决这一问题，减少资源的浪费，MyBatis在SqlSession对象中建立一个简单的缓存，将每次查询到的结果结果缓存起来，当下次查询的时候，如果判断先前有个完全一样的查询，会直接从缓存中直接将结果取出，返回给用户，不需要再进行一次数据库查询了。<br><img src="http://osjt45oaj.bkt.clouddn.com/QQ20161023-0.jpg" alt=""><br>mybatis执行数据curd操作是通过sqlSession完成。以查询为例，sqlSession的select操作最终交给执行器Excutor来完成，下面看下Excutor的query方法。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div><div class="line">60</div><div class="line">61</div><div class="line">62</div><div class="line">63</div><div class="line">64</div><div class="line">65</div><div class="line">66</div><div class="line">67</div><div class="line">68</div><div class="line">69</div><div class="line">70</div><div class="line">71</div><div class="line">72</div><div class="line">73</div><div class="line">74</div></pre></td><td class="code"><pre><div class="line">@Override</div><div class="line"> public &lt;E&gt; List&lt;E&gt; query(MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler) throws SQLException &#123;</div><div class="line">   //得到绑定sql</div><div class="line">   BoundSql boundSql = ms.getBoundSql(parameter);</div><div class="line">   //创建缓存Key</div><div class="line">   CacheKey key = createCacheKey(ms, parameter, rowBounds, boundSql);</div><div class="line">   //查询</div><div class="line">   return query(ms, parameter, rowBounds, resultHandler, key, boundSql);</div><div class="line">&#125;</div><div class="line"></div><div class="line"> @SuppressWarnings(&quot;unchecked&quot;)</div><div class="line"> @Override</div><div class="line"> public &lt;E&gt; List&lt;E&gt; query(MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, CacheKey key, BoundSql boundSql) throws SQLException &#123;</div><div class="line">   ErrorContext.instance().resource(ms.getResource()).activity(&quot;executing a query&quot;).object(ms.getId());</div><div class="line">   //如果已经关闭，报错</div><div class="line">   if (closed) &#123;</div><div class="line">     throw new ExecutorException(&quot;Executor was closed.&quot;);</div><div class="line">   &#125;</div><div class="line">   //先清局部缓存，再查询。但仅查询堆栈为0，才清。为了处理递归调用</div><div class="line">   if (queryStack == 0 &amp;&amp; ms.isFlushCacheRequired()) &#123;</div><div class="line">     clearLocalCache();</div><div class="line">   &#125;</div><div class="line">   List&lt;E&gt; list;</div><div class="line">   try &#123;</div><div class="line">     //加一,这样递归调用到上面的时候就不会再清局部缓存了</div><div class="line">     queryStack++;</div><div class="line">     //先根据cachekey从localCache去查</div><div class="line">     list = resultHandler == null ? (List&lt;E&gt;) localCache.getObject(key) : null;</div><div class="line">     if (list != null) &#123;</div><div class="line">       //若查到localCache缓存，处理localOutputParameterCache</div><div class="line">       handleLocallyCachedOutputParameters(ms, key, parameter, boundSql);</div><div class="line">     &#125; else &#123;</div><div class="line">       //从数据库查</div><div class="line">       list = queryFromDatabase(ms, parameter, rowBounds, resultHandler, key, boundSql);</div><div class="line">     &#125;</div><div class="line">   &#125; finally &#123;</div><div class="line">     //清空堆栈</div><div class="line">     queryStack--;</div><div class="line">   &#125;</div><div class="line">   if (queryStack == 0) &#123;</div><div class="line">     //延迟加载队列中所有元素</div><div class="line">     for (DeferredLoad deferredLoad : deferredLoads) &#123;</div><div class="line">       deferredLoad.load();</div><div class="line">     &#125;</div><div class="line">     // issue #601</div><div class="line">     //清空延迟加载队列</div><div class="line">     deferredLoads.clear();</div><div class="line">     if (configuration.getLocalCacheScope() == LocalCacheScope.STATEMENT) &#123;</div><div class="line">       //如果是STATEMENT，清本地缓存</div><div class="line">       clearLocalCache();</div><div class="line">     &#125;</div><div class="line">   &#125;</div><div class="line">   return list;</div><div class="line"> &#125;</div><div class="line"> </div><div class="line">//从数据库查</div><div class="line">private &lt;E&gt; List&lt;E&gt; queryFromDatabase(MappedStatement ms, Object parameter, RowBounds rowBounds, ResultHandler resultHandler, CacheKey key, BoundSql boundSql) throws SQLException &#123;</div><div class="line">  List&lt;E&gt; list;</div><div class="line">  //先向缓存中放入占位符</div><div class="line">  localCache.putObject(key, EXECUTION_PLACEHOLDER);</div><div class="line">  try &#123;</div><div class="line">    list = doQuery(ms, parameter, rowBounds, resultHandler, boundSql);</div><div class="line">  &#125; finally &#123;</div><div class="line">    //最后删除占位符</div><div class="line">    localCache.removeObject(key);</div><div class="line">  &#125;</div><div class="line">  //加入缓存</div><div class="line">  localCache.putObject(key, list);</div><div class="line">  //如果是存储过程，参数也加入缓存</div><div class="line">  if (ms.getStatementType() == StatementType.CALLABLE) &#123;</div><div class="line">    localOutputParameterCache.putObject(key, parameter);</div><div class="line">  &#125;</div><div class="line">  return list;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>可以发现query方法中首先会通过createCacheKey方法创建缓存key，得到的结果就是一级缓存中的键值。Mybatis对于其缓存key的生成规则： mappedStementId + offset + limit + SQL + queryParams + environment生成hashCode。，CacheKey会根据这些条件来区分每一个CacheKey。cacheKey中会保存key的hashCode,参数个数以及将参数保存在updateList中。可以发现，mybatis根据<select>标签所在的Mapper的Namespace+</select><select>标签的id属性、处理分页类RowBounds的limit和offset、sql语句、sql参数这几个条件来判断两次查询是否相同。</select></p>
+<p>通过上面的代码我们可以发现一级缓存就是执行器BaseExcutor的一个成员变量。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">protected PerpetualCache localCache;</div></pre></td></tr></table></figure>
+<p>进入PerpetualCache可以揭开一级缓存的真面目，实际上就是一个本地缓存hashMap.</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line">public class PerpetualCache implements Cache &#123;</div><div class="line"></div><div class="line">  private String id;</div><div class="line"></div><div class="line">  private Map&lt;Object, Object&gt; cache = new HashMap&lt;Object, Object&gt;();</div><div class="line">  ...</div></pre></td></tr></table></figure>
+<p>至此我们可以发现Mybatis一级缓存以单纯的HashMap做缓存，没有容量控制，是一个粗粒度的缓存，没有更新缓存和缓存过期的概念。只适用于一次SqlSession，而一次SqlSession中通常来说并不会有大量的查询操作，而且只要执行update操作（update、insert、delete），都会将这个SqlSession对象中对应的一级缓存清空掉，所以一般情况下不会出现缓存过大，影响JVM内存空间的问题；</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div></pre></td><td class="code"><pre><div class="line">//SqlSession.update/insert/delete会调用此方法</div><div class="line">@Override</div><div class="line">public int update(MappedStatement ms, Object parameter) throws SQLException &#123;</div><div class="line">  ErrorContext.instance().resource(ms.getResource()).activity(&quot;executing an update&quot;).object(ms.getId());</div><div class="line">  if (closed) &#123;</div><div class="line">    throw new ExecutorException(&quot;Executor was closed.&quot;);</div><div class="line">  &#125;</div><div class="line">  //update操作会清除所有缓存</div><div class="line">  clearLocalCache();</div><div class="line">  return doUpdate(ms, parameter);</div><div class="line">&#125;</div><div class="line"></div><div class="line">...</div><div class="line">@Override</div><div class="line">  public void clearLocalCache() &#123;</div><div class="line">    if (!closed) &#123;</div><div class="line">      localCache.clear();</div><div class="line">      localOutputParameterCache.clear();</div><div class="line">    &#125;</div><div class="line">  &#125;</div></pre></td></tr></table></figure>
+<p>总结下一级缓存存储过程：</p>
+<ol>
+<li>对于某个Select Statement，根据该Statement生成cacheKey。</li>
+<li>判断在Local Cache中,该key是否用对应的数据存在。</li>
+<li>如果命中，则跳过查询数据库，继续往下走。</li>
+<li>如果没命中,去数据库中查询数据，得到查询结果,将cacheKey和查询到的结果作为key和value，放入Local Cache中,将查询结果返回。</li>
+<li>判断缓存级别是否为STATEMENT级别，如果是的话，清空本地缓存。</li>
+</ol>
+<p>Mybatis一级缓存的生命周期和SqlSession一致。本质就是一个hashMap,<br>而且不同sqlSession的更新数据会引发脏数据问题，所以建议不使用一级缓存。<br>三种方式不走一级缓存：</p>
+<ol>
+<li><p>一级缓存的默认级别设定为Statement，即不使用一级缓存。\<setting name="localCacheScope" value="STATEMENT"></setting></p>
+</li>
+<li><p>\<select>标签中的flushCache属性设置为true</select></p>
+</li>
+<li><p>Mybatis的拦截器</p>
+</li>
+</ol>
+<h1 id="二级缓存"><a href="#二级缓存" class="headerlink" title="二级缓存"></a>二级缓存</h1><p>在mybatis中，缓存的功能由根接口Cache定义，整个体系采用装饰器模式。数据存储和缓存的基本功能由perpetualCache实现，然后通过一系列的装饰器对perpetualCache进行缓存策略的方便控制。</p>
+<p><img src="http://osjt45oaj.bkt.clouddn.com/mybatis2.png" alt=""></p>
+<ol>
+<li>FifoCache：先进先出算法，缓存回收策略</li>
+<li>LoggingCache：输出缓存命中的日志信息</li>
+<li>LruCache：最近最少使用算法，缓存回收策略</li>
+<li>ScheduledCache：调度缓存，负责定时清空缓存</li>
+<li>SerializedCache：缓存序列化和反序列化存储</li>
+<li>SoftCache：基于软引用实现的缓存管理策略</li>
+<li>SynchronizedCache：同步的缓存装饰器，用于防止多线程并发访问</li>
+<li>WeakCache：基于弱引用实现的缓存管理策略</li>
+<li>特殊的装饰器TransactionalCache：事务性的缓存</li>
+</ol>
+<p>二级缓存默认关闭。若开启先在Configuration下增加  \<setting name="cacheEnabled" value="true">，然后在mapper映射文件增加<cache>或<cache-ref>节点  注解方式增加@CacheNamespace或者@CacheNamespaceRef()。</cache-ref></cache></setting></p>
+<p>和cache体系差不多，mybatis执行器也是通过委托的方式实现执行器的灵活控制<br> <img src="http://osjt45oaj.bkt.clouddn.com/mybatis3.png" alt=""><br> 若二级缓存开启，则mybatis默认的执行器为CachingExecutor。<br> 流程为： 从二级缓存中进行查询 -&gt; [如果缓存中没有，委托给 BaseExecutor] -&gt; 进入一级缓存中查询 -&gt; [如果也没有] -&gt; 则执行 JDBC 查询。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div></pre></td><td class="code"><pre><div class="line">@Override</div><div class="line">public &lt;E&gt; List&lt;E&gt; query(MappedStatement ms, Object parameterObject, RowBounds rowBounds, ResultHandler resultHandler, CacheKey key, BoundSql boundSql)</div><div class="line">    throws SQLException &#123;</div><div class="line">  Cache cache = ms.getCache();</div><div class="line">  //只有通过&lt;cache/&gt;,&lt;cache-ref/&gt;或@CacheNamespace,@CacheNamespaceRef标记使用缓存的Mapper.xml或Mapper接口才会有二级缓存。</div><div class="line">  if (cache != null) &#123;</div><div class="line">    flushCacheIfRequired(ms);</div><div class="line">    if (ms.isUseCache() &amp;&amp; resultHandler == null) &#123;</div><div class="line">      ensureNoOutParams(ms, parameterObject, boundSql);</div><div class="line">      @SuppressWarnings(&quot;unchecked&quot;)</div><div class="line">      List&lt;E&gt; list = (List&lt;E&gt;) tcm.getObject(cache, key);</div><div class="line">      if (list == null) &#123;</div><div class="line">        list = delegate.&lt;E&gt; query(ms, parameterObject, rowBounds, resultHandler, key, boundSql);</div><div class="line">        tcm.putObject(cache, key, list); // </div><div class="line">      &#125;</div><div class="line">      return list;</div><div class="line">    &#125;</div><div class="line">  &#125;</div><div class="line">  return delegate.&lt;E&gt; query(ms, parameterObject, rowBounds, resultHandler, key, boundSql);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>这里的tcm.putObject方法执行完之后缓存并没有真正的生效，这里只是记录了这次查询将要产生缓存变更，这时候相同的sql查询缓存是不会生效的。下面看下TransactionalCacheManager#putObject（）</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line">public void putObject(Cache cache, CacheKey key, Object value) &#123;</div><div class="line">  getTransactionalCache(cache).putObject(key, value);</div><div class="line">&#125;</div><div class="line">private TransactionalCache getTransactionalCache(Cache cache) &#123;</div><div class="line">  TransactionalCache txCache = transactionalCaches.get(cache); </div><div class="line">  if (txCache == null) &#123;</div><div class="line">    txCache = new TransactionalCache(cache);</div><div class="line">    transactionalCaches.put(cache, txCache);</div><div class="line">  &#125;</div><div class="line">  return txCache;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>实际只有执行了sqlSession的commit方法之后，缓存的变更会真正的被刷新到缓存中去，开始真正的发挥作用。因为sqlSession的commit会调到上面TransactionalCache的commit</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div></pre></td><td class="code"><pre><div class="line">public void commit() &#123;</div><div class="line">  if (clearOnCommit) &#123;</div><div class="line">    delegate.clear();</div><div class="line">  &#125;</div><div class="line">  flushPendingEntries();</div><div class="line">  reset();</div><div class="line">&#125;</div><div class="line"></div><div class="line">public void rollback() &#123;</div><div class="line">  unlockMissedEntries();</div><div class="line">  reset();</div><div class="line">&#125;</div><div class="line"></div><div class="line">private void reset() &#123;</div><div class="line">  clearOnCommit = false;</div><div class="line">  entriesToAddOnCommit.clear();</div><div class="line">  entriesMissedInCache.clear();</div><div class="line">&#125;</div><div class="line"></div><div class="line">private void flushPendingEntries() &#123;</div><div class="line">  for (Map.Entry&lt;Object, Object&gt; entry : entriesToAddOnCommit.entrySet()) &#123;</div><div class="line">    delegate.putObject(entry.getKey(), entry.getValue());</div><div class="line">  &#125;</div><div class="line">  for (Object entry : entriesMissedInCache) &#123;</div><div class="line">    if (!entriesToAddOnCommit.containsKey(entry)) &#123;</div><div class="line">      delegate.putObject(entry, null);</div><div class="line">    &#125;</div><div class="line">  &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>同样，写操作也不是马上会清除缓存。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line">@Override</div><div class="line"> public int update(MappedStatement ms, Object parameterObject) throws SQLException &#123;</div><div class="line">//默认刷新缓存</div><div class="line">   flushCacheIfRequired(ms);</div><div class="line">   return delegate.update(ms, parameterObject);</div><div class="line"> &#125;</div><div class="line">private void flushCacheIfRequired(MappedStatement ms) &#123;</div><div class="line">  Cache cache = ms.getCache();</div><div class="line">  if (cache != null &amp;&amp; ms.isFlushCacheRequired()) &#123;      </div><div class="line">    tcm.clear(cache);</div><div class="line">  &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>总结</p>
+<ol>
+<li>二级缓存是以namespace为单位，不同namespace下互不影响。</li>
+<li>写操作会清空所在namespace下所有缓存。</li>
+<li>一个namespace下操作多张表会引起脏数据问题。</li>
+<li>正是由于Mybatis cache体制这种灵活的委托机制，我们可以借助外部缓存来自定义Mybatis的二级缓存。</li>
+</ol>
+<p>上面就是Mybatis的缓存体系，设计上很简单，也存在不少的坑，所以我们使用的时候还是自己实现或者借助外部缓存，让Mybatis只完成它的本职工作就好！</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2017/08/27/mybatis-cache/" data-id="cje5obayu0001us2mt884iz6i" class="article-share-link">Share</a>
       
       
     </footer>
@@ -249,7 +351,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/23/redis-list/" data-id="cjaj0z35l000i052mg108sgm2" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/23/redis-list/" data-id="cje5obazo000kus2mugd8r9nd" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/redis/">redis</a></li></ul>
@@ -310,7 +412,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/14/RateLimiter/" data-id="cjaj0z34u0001052mmmg3i5ou" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/14/RateLimiter/" data-id="cje5obayz0004us2m2ydcajxj" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>
@@ -379,7 +481,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cjaj0z35o000k052mt68xt4db" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cje5obazm000ius2mglzv44fr" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -440,7 +542,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cjaj0z35i000d052muqcpy2wz" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cje5obazk000gus2mbrd6yizn" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/jvm/">jvm</a></li></ul>
@@ -511,7 +613,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjaj0z35e000b052muh4axq5f" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cje5obazi000fus2m4c62peyv" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -554,7 +656,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cjaj0z34q0000052mnrhpq3wk" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cje5obayo0000us2mhpfogl3z" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -594,53 +696,10 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjaj0z35j000f052mhvfbt62t" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cje5obazr000mus2m43tzhrp6" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
-
-    </footer>
-  </div>
-  
-</article>
-
-
-  
-    <article id="post-guava-cache" class="article article-type-post" itemscope itemprop="blogPost">
-  <div class="article-meta">
-    <a href="/2017/03/17/guava-cache/" class="article-date">
-  <time datetime="2017-03-17T01:29:22.000Z" itemprop="datePublished">2017-03-17</time>
-</a>
-    
-  </div>
-  <div class="article-inner">
-    
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2017/03/17/guava-cache/">本地缓存之Guava cache</a>
-    </h1>
-  
-
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <p>缓存在现在的各种系统中的作用事不言而喻的，cache一般指为提高系统性能而开辟的一块内存空间，利用缓存不仅可以提高系统响应时间，还可以节省处理数据的资源消耗。现在有很多优秀的cache框架提供非常强大的功能，但是对于数据不是很大，数据结构简单的我们可以考虑本地缓存，Guava Cache是一个基于全内存的本地缓存实现，应该可以说是目前为止java实现本地缓存的不二之选。</p>
-<p>Guava Cache可以看成一个concurrentHashMap,因而它是线程安全的，除此之外，它内部还实现了缓存淘汰，避免长期的内存占用。我们还是先看下如何使用它，有两种方式可以创建Guava Cache,CacheLoader和Callable,主要区别是CacheLoader创建时需要指定与键关联的值的逻辑运算，简单的说，创建时能根据键经过运算得到值就用前者，否则用后者。我们先上代码：</p>
-<h1 id="CacheLoader"><a href="#CacheLoader" class="headerlink" title="CacheLoader"></a>CacheLoader</h1><p><img src="http://osjt45oaj.bkt.clouddn.com/a.png" alt=""><br>上面我们定义了一个抽象类，提供一个无参和一个带失效时间参数的构造方法，但都需要创建一个CacheLoader提供给CacheBuilder,CacheBuilder还有很多实用的参数配置，感兴趣的可以自行研究下，这里不做赘述，创建时根据具体服务继承这个抽象类实现loadData()方法就可以了，使用时最终是通过loadingCahce的get(k)取值。这个方法先从缓存中取值，若没取到则通过CacheLoader原子的向缓存中添加新值。</p>
-<h1 id="Callable"><a href="#Callable" class="headerlink" title="Callable"></a>Callable</h1><p><img src="http://osjt45oaj.bkt.clouddn.com/b.png" alt=""><br> 这里也是cache.get(k)取值，没取到通过callable原子添加。也可通过cache.put(key.value)显示的添加新值。Guava Cache的用法很简单，下面我们来看下他到底是如何存的。前面我们也提过Guava Cache与ConcurrentHashMap类似，它延用了ConcurentHashMap的设计思路，使用多个segment来细粒度锁，保证线程安全下的并发效率。下面是segment的数据结构。<br><img src="http://osjt45oaj.bkt.clouddn.com/c.png" alt=""><br>每个segment包含一个ReferenceEntry数组，数组每项都是一个ReferenceEntry链，每个ReferenceEntry包含key,hash，valueReference和next字段。在一个segment中，所有的ReferenceEntry还组成一个accessQueue和一个writeQueue。这两个queue是了实现缓存淘汰算法-LRU算法,这两条链都是一个双向链表，通过ReferenceEntry中的previousInWriteQueue、nextInWriteQueue和previousInAccessQueue、nextInAccessQueue链接而成。WriteQueue和AccessQueue都是自定义了offer、add（直接调用offer）、remove、poll等操作的逻辑，对于offer（add）操作，如果是新加的节点，则直接加入到该链的结尾，如果是已存在的节点，则将该节点链接的链尾；对remove操作，直接从该链中移除该节点；对poll操作，将头节点的下一个节点移除，并返回。在对每个节点的更新操作都会将该节点重新链到write链和access链末尾，并且更新其writeTime和accessTime字段，而每找到一个节点，都会将该节点重新链到access链末尾，并更新其accessTime字段。这两个双向链表的存在都是为了实现采用最近最少使用算法（LRU）的evict操作（expire、size limit引起的evict）。</p>
-<p> ReferenceEntry会根据是否配置了expireAfterWrite、expireAfterAccess、maximumSize来决定是否需要write链和access链确定要创建的具体Reference：StrongEntry、StrongWriteEntry等，可以指定ReferenceEntry的key为强引用Reference或WeakReference以达到自动内存回收的目的。对于ValueReference,它对应三个实现类，分别为StrongValueReference、SoftValueReference、WeakValueReference。ValueReference还持有对ReferenceEntry的引用，这样做是因为在SoftValueRerence和WeakValueReference被回收时，需要将其key对应的项在segement中移除。Guava Cache在每次操作时会去检查是否需要evict操作，这样也可能发生在缓存长期会使用的情况下导致某些清理的entry未能清理。</p>
-
-      
-    </div>
-    <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cjaj0z35d000a052mp8t3rbsi" class="article-share-link">Share</a>
-      
-      
-  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>
 
     </footer>
   </div>
@@ -684,7 +743,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">归档</h3>
     <div class="widget">
-      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
     </div>
   </div>
 
@@ -705,15 +764,15 @@
           </li>
         
           <li>
+            <a href="/2017/08/27/mybatis-cache/">mybatis缓存体系</a>
+          </li>
+        
+          <li>
             <a href="/2017/07/23/redis-list/">redis消息队列实现</a>
           </li>
         
           <li>
             <a href="/2017/07/14/RateLimiter/">接口限流之RateLimiter</a>
-          </li>
-        
-          <li>
-            <a href="/2017/07/09/weak-gc/">weakHashMap与GC</a>
           </li>
         
       </ul>
@@ -728,7 +787,7 @@
   
   <div class="outer">
     <div id="footer-info" class="inner">
-      &copy; 2017 zhusheng<br>
+      &copy; 2018 zhusheng<br>
       Powered by <a href="http://hexo.io/" target="_blank">Hexo</a>
     </div>
   </div>

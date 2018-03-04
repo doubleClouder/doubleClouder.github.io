@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>kafka学习笔记（二）zero-copy使用分析 | clouder的博客</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="description" content="前言  kafka作为分布式的MQ系统时一个最重要的特性就是高吞吐量、低延迟。kafka每秒可以处理几十万条消息，它的延迟最低只有几毫秒。每个topic可以分多个partition,kafka使用replication机制备份partition数据。Follower partition可以批量的从Leader partition复制数据，而且Leader充分利用磁盘顺序读以及zero copy机制">
+<meta name="keywords" content="kafka">
+<meta property="og:type" content="article">
+<meta property="og:title" content="kafka学习笔记（二）zero-copy使用分析">
+<meta property="og:url" content="http://yoursite.com/2017/11/20/kafka-zero-copy/index.html">
+<meta property="og:site_name" content="clouder的博客">
+<meta property="og:description" content="前言  kafka作为分布式的MQ系统时一个最重要的特性就是高吞吐量、低延迟。kafka每秒可以处理几十万条消息，它的延迟最低只有几毫秒。每个topic可以分多个partition,kafka使用replication机制备份partition数据。Follower partition可以批量的从Leader partition复制数据，而且Leader充分利用磁盘顺序读以及zero copy机制">
+<meta property="og:updated_time" content="2018-03-04T09:52:49.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="kafka学习笔记（二）zero-copy使用分析">
+<meta name="twitter:description" content="前言  kafka作为分布式的MQ系统时一个最重要的特性就是高吞吐量、低延迟。kafka每秒可以处理几十万条消息，它的延迟最低只有几毫秒。每个topic可以分多个partition,kafka使用replication机制备份partition数据。Follower partition可以批量的从Leader partition复制数据，而且Leader充分利用磁盘顺序读以及zero copy机制">
+  
+    <link rel="alternate" href="/atom.xml" title="clouder的博客" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png">
+  
+  
+    <link href="//fonts.googleapis.com/css?family=Source+Code+Pro" rel="stylesheet" type="text/css">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  
+
+</head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">clouder的博客</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">在学习的道路上不断成长。。</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+          <a id="nav-rss-link" class="nav-icon" href="/atom.xml" title="RSS Feed"></a>
+        
+        <a id="nav-search-btn" class="nav-icon" title="搜索"></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://yoursite.com"></form>
+      </div>
+    </div>
+  </div>
+</header>
+      <div class="outer">
+        <section id="main"><article id="post-kafka-zero-copy" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2017/11/20/kafka-zero-copy/" class="article-date">
+  <time datetime="2017-11-20T02:36:54.000Z" itemprop="datePublished">2017-11-20</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="article-title" itemprop="name">
+      kafka学习笔记（二）zero-copy使用分析
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>  kafka作为分布式的MQ系统时一个最重要的特性就是高吞吐量、低延迟。kafka每秒可以处理几十万条消息，它的延迟最低只有几毫秒。每个topic可以分多个partition,kafka使用replication机制备份partition数据。Follower partition可以批量的从Leader partition复制数据，而且Leader充分利用磁盘顺序读以及zero copy机制，这样极大的提高复制性能，内部批量写磁盘，大幅减少了Follower与Leader的消息量差。zero copy是nio重要特性之一，它极大提高数据传输效率，本文我们就来分析一下kafka中如果使用这一特性。</p>
+<h1 id="zero-copy机制"><a href="#zero-copy机制" class="headerlink" title="zero copy机制"></a>zero copy机制</h1><p>  说到zero copy，我们先来看下传统io服务端对客户端的传输。对于读操作：jvm虚拟机一定会发送一个read（）操作系统级别的方法，由此会产生一个上下文的切换，从程序所在的用户空间切换至系统的内核空间，内核空间向磁盘空间请求数据，通过DMA直接内存访问的方式将数据读取到内核空间缓冲区，此时用户空间是无法直接使用的，所以下面会将这份缓冲数据原封不动的拷贝到用户空间，至此read操作就结束。期间有两次上下文的切换，和两次数据的拷贝。对于写操作：将文件读取之后需要发送给远端socket客户端。同样调用系统级别的write方法，需要将上述读到的用户空间的数据原封不动的拷贝到内核上的socket缓冲区，然后DMA 引擎将数据从该缓冲区传到协议引擎，这一次拷贝独立地、异步地发生 。我们可以发现在一次网络IO过程有着不必要的上下文切换和数据拷贝。</p>
+<p> 因此操作系统对与IO的一种优化方式是对于读写操作：用户空间向操作系统发送sendfile()方法，后续的操作只会在内核空间完成。对于所有的读写操作将只会有两次的用户空间和内核空间切换，这种操作称为操作系统意义上的零拷贝。而最佳的实现方式是通过DMA的方式拷贝数据到内核缓冲区，将对应的文件描述符写到socket buffer中，包含了内核的缓冲区的地址和数据长度，并不需要将数据拷贝到socket buffer中，只用存文件描述符。最后协议引擎发送数据的时候，从kernel buffer和socket buffer里面读取数据，对于kernel buffer是真实数据的读取，而对于socket buffer是文件描述符的读取，通过gather操作最终一起发送给客户端。</p>
+<p>在nio中通过java.nio.channels.FileChannel. transferTo()方法支持zerocopy技术。</p>
+<h1 id="kafa中如何应用"><a href="#kafa中如何应用" class="headerlink" title="kafa中如何应用"></a>kafa中如何应用</h1><p>kafka中partition leader到follower的消息同步和consumer拉取partition中的消息都使用到zero cory。Cousumer从broker获取数据时直接使用了FileChannel.transferTo()，直接在内核态进行的channel到channel的数据传输。</p>
+<p>下面通过代码分析一下kafka使用zero cory的流程。首先看下kafka.server.KafkaApis.handle方法，它是kafka业务逻辑处理的入口。<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">def handle(request: RequestChannel.Request) &#123;</div><div class="line">       ApiKeys.forId(request.requestId) match &#123;</div><div class="line">        case ApiKeys.PRODUCE =&gt; handleProducerRequest(request)</div><div class="line">        case ApiKeys.FETCH =&gt; handleFetchRequest(request)</div></pre></td></tr></table></figure></p>
+<p>进入handleFetchRequest方法，也即消费者获取消息的逻辑。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div></pre></td><td class="code"><pre><div class="line">replicaManager.fetchMessages(  </div><div class="line">       fetchRequest.maxWait.toLong, </div><div class="line">      fetchRequest.replicaId, </div><div class="line">      fetchRequest.minBytes,  </div><div class="line">      authorizedRequestInfo,  </div><div class="line">      sendResponseCallback)</div></pre></td></tr></table></figure>
+<p>ReplicaManager 包含所有主题的所有partition消息。大部分针对Partition的操作都是通过该类来完成的。进入fetchMessages中我们会发现</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">val logReadResults = readFromLocalLog(fetchOnlyFromLeader, fetchOnlyCommitted, fetchInfo)</div></pre></td></tr></table></figure>
+<p>这是真正获取broker数据的地方，内部通过Log对象调用log.read(offset, fetchSize, maxOffsetOpt)，这里的log就是segment log的抽象。进入read发现数据是从这里读到的</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">val fetchInfo = entry.getValue.read(startOffset, maxOffset, maxLength, maxPosition)</div></pre></td></tr></table></figure>
+<p>fetchInfo对象有一个成员是FileMessageSet，它表示用户在这个Partition这一次消费能够拿到的数据集合。FileMessageSet里面有一个很重要的方法。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line">def writeTo(destChannel: GatheringByteChannel, writePosition: Long, size: Int): Int = &#123;</div><div class="line">    ......</div><div class="line">    </div><div class="line">    val bytesTransferred = (destChannel match &#123;</div><div class="line">      case tl: TransportLayer =&gt; tl.transferFrom(channel, position, count)</div><div class="line">      case dc =&gt; channel.transferTo(position, count, dc)</div><div class="line">    &#125;).toInt</div><div class="line">   </div><div class="line">    bytesTransferred</div><div class="line">  &#125;</div></pre></td></tr></table></figure>
+<p>回到上面readFromLocalLog，获取到数据后会被包装成</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div></pre></td><td class="code"><pre><div class="line">val fetchPartitionData = logReadResults.mapValues(result =&gt;  FetchResponsePartitionData(result.errorCode, result.hw, result.info.messageSet))</div><div class="line">responseCallback(fetchPartitionData)</div></pre></td></tr></table></figure>
+<p>fetchPartitionData包含了上面提到的FileMessageSet，里面有真正进行zero copy的tranferTo()方法。上面代码可以发现回调函数responseCallback的参数是fetchPartitionData。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line">def sendResponseCallback(responsePartitionData: Map[TopicAndPartition, FetchResponsePartitionData]) &#123;</div><div class="line">      val mergedResponseStatus = responsePartitionData ++ unauthorizedResponseStatus</div><div class="line"></div><div class="line">...</div><div class="line">      def fetchResponseCallback(delayTimeMs: Int) &#123;</div><div class="line">        val response = FetchResponse(fetchRequest.correlationId, mergedResponseStatus, fetchRequest.versionId, delayTimeMs)</div><div class="line">        requestChannel.sendResponse(new RequestChannel.Response(request, new FetchResponseSend(request.connectionId, response)))</div><div class="line">      &#125;</div><div class="line"></div><div class="line">    &#125;</div></pre></td></tr></table></figure>
+<p>这里可以发现FetchResponsePartitionData 会被封装成一个FetchResponseSend ,然后由requestChannel发送出去。因为Kafka完全应用是NIO的异步机制，我们继续看下数据如何发送到consumer端。</p>
+<p>在SocketServer，也就是负责和所有的消费者打交道，建立连接的中枢里，会不断的进行poll操作</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line">override def run() &#123;</div><div class="line">    startupComplete()</div><div class="line">    while(isRunning) &#123;</div><div class="line">      try &#123;</div><div class="line">        // setup any new connections that have been queued up</div><div class="line">        configureNewConnections()</div><div class="line">        // register any new responses for writing</div><div class="line">        processNewResponses()</div><div class="line">        try &#123;</div><div class="line">          selector.poll(300)</div><div class="line">        &#125; catch &#123;</div><div class="line">          case...</div><div class="line">        &#125;</div></pre></td></tr></table></figure>
+<p>首先会注册新的连接，如果有的话。接着就是处理新的响应了。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div></pre></td><td class="code"><pre><div class="line">private def processNewResponses() &#123;</div><div class="line">    var curr = requestChannel.receiveResponse(id)</div><div class="line">    while(curr != null) &#123;</div><div class="line">      try &#123;</div><div class="line">        curr.responseAction match &#123;         </div><div class="line">          case RequestChannel.SendAction =&gt;</div><div class="line">            selector.send(curr.responseSend)</div><div class="line">            inflightResponses += (curr.request.connectionId -&gt; curr)</div><div class="line">          </div><div class="line">        &#125;</div><div class="line">      &#125; finally &#123;</div><div class="line">        curr = requestChannel.receiveResponse(id)</div><div class="line">      &#125;</div><div class="line">    &#125;</div><div class="line">  &#125;</div></pre></td></tr></table></figure>
+<p>requestChannel.receiveResponse 对应上面FetchResponseSend的requestChannel.sendResponse。这里selector.send会将FetchResponseSend注册一个WRITE事件到selector上。SocketServer 会poll队列，一旦对应的KafkaChannel 写操作ready了，就会调用KafkaChannel的write方法：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div></pre></td><td class="code"><pre><div class="line">public Send write() throws IOException &#123;</div><div class="line">        if (send != null &amp;&amp; send(send)) </div><div class="line">     </div><div class="line">    ....</div><div class="line"> private boolean send(Send send) throws IOException &#123;</div><div class="line">        send.writeTo(transportLayer);</div><div class="line">        if (send.completed())</div><div class="line">            transportLayer.removeInterestOps(SelectionKey.OP_WRITE);</div><div class="line"></div><div class="line">        return send.completed();</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
+<p>send方法的入参send对象就是上面我们注册的FetchResponseSend 对象。接着看下send.writeTo()方法。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line">private val sends = new MultiSend(dest, JavaConversions.seqAsJavaList(fetchResponse.dataGroupedByTopic.toList.map &#123;</div><div class="line">    case(topic, data) =&gt; new TopicDataSend(dest, TopicData(topic,</div><div class="line">                                                     data.map&#123;case(topicAndPartition, message) =&gt; (topicAndPartition.partition, message)&#125;))</div><div class="line">    &#125;))</div><div class="line">override def writeTo(channel: GatheringByteChannel): Long = &#123;</div><div class="line">    .....    </div><div class="line">     written += sends.writeTo(channel)</div><div class="line">    ....</div><div class="line">  &#125;</div></pre></td></tr></table></figure>
+<p>可以发现send是一个MultiSend对象，里面包含两个重要成员topicAndPartition.partition: 分区<br>message:FetchResponsePartitionData</p>
+<p>最后进行writeTo的时候是通过上面提到的FileMessageSet的writeTo，其实最后是通过tl.transferFrom(channel, position, count) 来完成最后的数据发送的。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">@Override</div><div class="line">    public long transferFrom(FileChannel fileChannel, long position, long count) throws IOException &#123;</div><div class="line">        return fileChannel.transferTo(position, count, socketChannel);</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>  上述就是zero copy的介绍以及kafka中是如何对这一机制的合理应用和异步NIO来极大提高消息消费效率的过程。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2017/11/20/kafka-zero-copy/" data-id="cjecmcdnu0001gz2mfjtg6zty" class="article-share-link">Share</a>
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kafka/">kafka</a></li></ul>
+
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+  
+    <a href="/2017/11/19/kafka-one/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">kafka学习笔记（一）kafka简介</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签</h3>
+    <div class="widget">
+      <ul class="tag-list"><li class="tag-list-item"><a class="tag-list-link" href="/tags/guava/">guava</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/java/">java</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/jvm/">jvm</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/kafka/">kafka</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/redis/">redis</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签云</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/guava/" style="font-size: 15px;">guava</a> <a href="/tags/java/" style="font-size: 20px;">java</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 10px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/设计模式/" style="font-size: 15px;">设计模式</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">归档</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">最新文章</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2017/11/20/kafka-zero-copy/">kafka学习笔记（二）zero-copy使用分析</a>
+          </li>
+        
+          <li>
+            <a href="/2017/11/19/kafka-one/">kafka学习笔记（一）kafka简介</a>
+          </li>
+        
+          <li>
+            <a href="/2017/09/24/dynamic-proxy/">ASM初探</a>
+          </li>
+        
+          <li>
+            <a href="/2017/08/27/mybatis-cache/">mybatis缓存体系</a>
+          </li>
+        
+          <li>
+            <a href="/2017/07/23/redis-list/">redis消息队列实现</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      &copy; 2018 zhusheng<br>
+      Powered by <a href="http://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+  <link rel="stylesheet" href="/fancybox/jquery.fancybox.css">
+  <script src="/fancybox/jquery.fancybox.pack.js"></script>
+
+
+<script src="/js/script.js"></script>
+
+  </div>
+</body>
+</html>

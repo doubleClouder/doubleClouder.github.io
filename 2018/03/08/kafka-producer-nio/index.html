@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>kafka学习笔记（三）- KafkaProducer分析 | clouder的博客</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="description" content="前言自kafka 0.8.2版本以后，kafka团队发布了新的java版本的client api以替代之前的scala版本的api。我们对kafka client端的分析都是建立在java版本的api基础之上。博主分析的kafka版本是0.11.0。 Producer异步发送0.8.2之前的scala客户端版本分别实现同步发送和异步发送两种方式。而在0.8.2之后的java版本中同步发送实际上也是">
+<meta name="keywords" content="kafka">
+<meta property="og:type" content="article">
+<meta property="og:title" content="kafka学习笔记（三）- KafkaProducer分析">
+<meta property="og:url" content="http://yoursite.com/2018/03/08/kafka-producer-nio/index.html">
+<meta property="og:site_name" content="clouder的博客">
+<meta property="og:description" content="前言自kafka 0.8.2版本以后，kafka团队发布了新的java版本的client api以替代之前的scala版本的api。我们对kafka client端的分析都是建立在java版本的api基础之上。博主分析的kafka版本是0.11.0。 Producer异步发送0.8.2之前的scala客户端版本分别实现同步发送和异步发送两种方式。而在0.8.2之后的java版本中同步发送实际上也是">
+<meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/kafka_producer.png">
+<meta property="og:updated_time" content="2018-03-09T10:25:46.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="kafka学习笔记（三）- KafkaProducer分析">
+<meta name="twitter:description" content="前言自kafka 0.8.2版本以后，kafka团队发布了新的java版本的client api以替代之前的scala版本的api。我们对kafka client端的分析都是建立在java版本的api基础之上。博主分析的kafka版本是0.11.0。 Producer异步发送0.8.2之前的scala客户端版本分别实现同步发送和异步发送两种方式。而在0.8.2之后的java版本中同步发送实际上也是">
+<meta name="twitter:image" content="http://osjt45oaj.bkt.clouddn.com/kafka_producer.png">
+  
+    <link rel="alternate" href="/atom.xml" title="clouder的博客" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png">
+  
+  
+    <link href="//fonts.googleapis.com/css?family=Source+Code+Pro" rel="stylesheet" type="text/css">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  
+
+</head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">clouder的博客</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">在学习的道路上不断成长。。</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+          <a id="nav-rss-link" class="nav-icon" href="/atom.xml" title="RSS Feed"></a>
+        
+        <a id="nav-search-btn" class="nav-icon" title="搜索"></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://yoursite.com"></form>
+      </div>
+    </div>
+  </div>
+</header>
+      <div class="outer">
+        <section id="main"><article id="post-kafka-producer-nio" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2018/03/08/kafka-producer-nio/" class="article-date">
+  <time datetime="2018-03-08T02:13:43.000Z" itemprop="datePublished">2018-03-08</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="article-title" itemprop="name">
+      kafka学习笔记（三）- KafkaProducer分析
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>自kafka 0.8.2版本以后，kafka团队发布了新的java版本的client api以替代之前的scala版本的api。我们对kafka client端的分析都是建立在java版本的api基础之上。博主分析的kafka版本是0.11.0。</p>
+<h2 id="Producer异步发送"><a href="#Producer异步发送" class="headerlink" title="Producer异步发送"></a>Producer异步发送</h2><p>0.8.2之前的scala客户端版本分别实现同步发送和异步发送两种方式。而在0.8.2之后的java版本中同步发送实际上也是通过异步发送间接实现的。</p>
+<p>异步发送实际上就是在客户端维护一个消息缓冲区，producer发送消息的时候先将消息保存到消息缓冲区，然后后台发送线程会批量将消息缓冲区的消息发送到broker。<br><img src="http://osjt45oaj.bkt.clouddn.com/kafka_producer.png" alt=""><br>上图我们可以看出kafkaProducer在需要进行消息发送的时候，先把消息放到本地队列，然后由IO线程Sender取出队列的消息，异步的将消息发送给kafka broker。这里的sender其实还看了另外一件事，就是从broker获取meta信息，metaData就是broker,topic和partition之间的映射关系,每一个topic下partion有哪些；partion在broker上是如何分布的；partion的的leader和follwer信息。</p>
+<p>从上面的producer的异布发送模型可以看出Sender每次从broker获取meta信息都会写到metaData中，然后kafkaProducer从metaData中获取这些信息，下面我们通过代码来看下metaData的结构。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div></pre></td><td class="code"><pre><div class="line">public final class Metadata &#123;</div><div class="line"></div><div class="line">    private static final Logger log = LoggerFactory.getLogger(Metadata.class);</div><div class="line"></div><div class="line">    public static final long TOPIC_EXPIRY_MS = 5 * 60 * 1000;</div><div class="line">    private static final long TOPIC_EXPIRY_NEEDS_UPDATE = -1L;</div><div class="line"></div><div class="line">    //更新失败，下一次更新的时间</div><div class="line">    private final long refreshBackoffMs;</div><div class="line">    //过期时间，也即每隔多久需要更新一次。默认10分钟</div><div class="line">    private final long metadataExpireMs;</div><div class="line">    //成功更新，版本号递增</div><div class="line">    private int version;</div><div class="line">    //上一次更新时间</div><div class="line">    private long lastRefreshMs;</div><div class="line">    //上一次成功更新时间</div><div class="line">    private long lastSuccessfulRefreshMs;</div><div class="line">    //集群信息</div><div class="line">    private Cluster cluster;</div><div class="line">    private boolean needUpdate;</div><div class="line">    /* Topics with expiry time */</div><div class="line">    private final Map&lt;String, Long&gt; topics;</div><div class="line">    private final List&lt;Listener&gt; listeners;</div><div class="line">    private final ClusterResourceListeners clusterResourceListeners;</div><div class="line">    private boolean needMetadataForAllTopics;</div><div class="line">    private final boolean allowAutoTopicCreation;</div><div class="line">    private final boolean topicExpiryEnabled;</div><div class="line"></div><div class="line">    public Metadata(long refreshBackoffMs, long metadataExpireMs, boolean allowAutoTopicCreation) &#123;</div><div class="line">        this(refreshBackoffMs, metadataExpireMs, allowAutoTopicCreation, false, new ClusterResourceListeners());</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
+<p>MetaData中包含一些metaData本身操作信息和集群信息Cluster。cluster中真正维护着上面所说的boker与topic/partition的映射关系</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line">public final class Cluster &#123;</div><div class="line"></div><div class="line">    private final boolean isBootstrapConfigured;</div><div class="line">    private final List&lt;Node&gt; nodes;</div><div class="line">    private final Set&lt;String&gt; unauthorizedTopics;</div><div class="line">    private final Set&lt;String&gt; internalTopics;</div><div class="line">    private final Node controller;</div><div class="line">    private final Map&lt;TopicPartition, PartitionInfo&gt; partitionsByTopicPartition;</div><div class="line">    private final Map&lt;String, List&lt;PartitionInfo&gt;&gt; partitionsByTopic;</div><div class="line">    private final Map&lt;String, List&lt;PartitionInfo&gt;&gt; availablePartitionsByTopic;</div><div class="line">    private final Map&lt;Integer, List&lt;PartitionInfo&gt;&gt; partitionsByNode;</div><div class="line">    private final Map&lt;Integer, Node&gt; nodesById;</div><div class="line">    private final ClusterResource clusterResource;</div></pre></td></tr></table></figure>
+<p>在MetaData中，所有的公共方法都是synchronized的，metaData的操作是同步的，所以在多个producer thread读，sender线程写的情况下不会出现线程安全问题。</p>
+<p>清楚metaData的结构之后，我们继续看下Sender是什么，Sender是一个IO线程，负责与broker交互，那么它是何时创建的呢</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div></pre></td><td class="code"><pre><div class="line">@SuppressWarnings(&#123;&quot;unchecked&quot;, &quot;deprecation&quot;&#125;)</div><div class="line">    private KafkaProducer(ProducerConfig config, Serializer&lt;K&gt; keySerializer, Serializer&lt;V&gt; valueSerializer) &#123;</div><div class="line">        try &#123;</div><div class="line">            log.trace(&quot;Starting the Kafka producer&quot;);</div><div class="line">            </div><div class="line">  ····</div><div class="line">                       this.metadata.update(Cluster.bootstrap(addresses), Collections.&lt;String&gt;emptySet(), time.milliseconds());</div><div class="line">            ChannelBuilder channelBuilder = ClientUtils.createChannelBuilder(config);</div><div class="line">            Sensor throttleTimeSensor = Sender.throttleTimeSensor(metrics);</div><div class="line">            NetworkClient client = new NetworkClient(</div><div class="line">                    new Selector(config.getLong(ProducerConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG),</div><div class="line">                            this.metrics, time, &quot;producer&quot;, channelBuilder),</div><div class="line">                    this.metadata,</div><div class="line">                    clientId,</div><div class="line">                    maxInflightRequests,</div><div class="line">                    config.getLong(ProducerConfig.RECONNECT_BACKOFF_MS_CONFIG),</div><div class="line">                    config.getLong(ProducerConfig.RECONNECT_BACKOFF_MAX_MS_CONFIG),</div><div class="line">                    config.getInt(ProducerConfig.SEND_BUFFER_CONFIG),</div><div class="line">                    config.getInt(ProducerConfig.RECEIVE_BUFFER_CONFIG),</div><div class="line">                    this.requestTimeoutMs,</div><div class="line">                    time,</div><div class="line">                    true,</div><div class="line">                    apiVersions,</div><div class="line">                    throttleTimeSensor);</div><div class="line">            this.sender = new Sender(client,</div><div class="line">                    this.metadata,</div><div class="line">                    this.accumulator,</div><div class="line">                    maxInflightRequests == 1,</div><div class="line">                    config.getInt(ProducerConfig.MAX_REQUEST_SIZE_CONFIG),</div><div class="line">                    acks,</div><div class="line">                    retries,</div><div class="line">                    this.metrics,</div><div class="line">                    Time.SYSTEM,</div><div class="line">                    this.requestTimeoutMs,</div><div class="line">                    config.getLong(ProducerConfig.RETRY_BACKOFF_MS_CONFIG),</div><div class="line">                    this.transactionManager,</div><div class="line">                    apiVersions);</div><div class="line">            String ioThreadName = &quot;kafka-producer-network-thread&quot; + (clientId.length() &gt; 0 ? &quot; | &quot; + clientId : &quot;&quot;);</div><div class="line">            this.ioThread = new KafkaThread(ioThreadName, this.sender, true);</div><div class="line">            this.ioThread.start();</div><div class="line">            this.errors = this.metrics.sensor(&quot;errors&quot;);</div><div class="line">            config.logUnused();</div><div class="line">            AppInfoParser.registerAppInfo(JMX_PREFIX, clientId);</div><div class="line">            log.debug(&quot;Kafka producer started&quot;);</div><div class="line">        &#125; catch (Throwable t) &#123;</div><div class="line">            // call close methods if internal objects are already constructed this is to prevent resource leak. see KAFKA-2121</div><div class="line">            close(0, TimeUnit.MILLISECONDS, true);</div><div class="line">            // now propagate the exception</div><div class="line">            throw new KafkaException(&quot;Failed to construct kafka producer&quot;, t);</div><div class="line">        &#125;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
+<p>kafkaProducer的初始化过程是一些序列化规则，压缩类型，监控等基础配置的生成以及sender线程的创建，我们继续看下sender线程具体的动作。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line">void run(long now) &#123;</div><div class="line">        if (transactionManager != null) &#123;</div><div class="line">            if (!transactionManager.isTransactional()) &#123;</div><div class="line">                // this is an idempotent producer, so make sure we have a producer id</div><div class="line">                maybeWaitForProducerId();</div><div class="line">            &#125; else if (transactionManager.hasInFlightRequest() || maybeSendTransactionalRequest(now)) &#123;</div><div class="line">                // as long as there are outstanding transactional requests, we simply wait for them to return</div><div class="line">                client.poll(retryBackoffMs, now);</div><div class="line">                return;</div><div class="line">            &#125;</div><div class="line">            ...</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>在sender run方法中我们关注client.poll()这一行，前面transactionManager跟事务性producer相关，这里我们不关注。<br>client.poll()是调的NetworkClient的poll()方法，这是kafka客户端网络通信的的封装，封装了NIO操作。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div></pre></td><td class="code"><pre><div class="line">@Override</div><div class="line">    public List&lt;ClientResponse&gt; poll(long timeout, long now) &#123;</div><div class="line">        if (!abortedSends.isEmpty()) &#123;</div><div class="line">            // If there are aborted sends because of unsupported version exceptions or disconnects,</div><div class="line">            // handle them immediately without waiting for Selector#poll.</div><div class="line">            List&lt;ClientResponse&gt; responses = new ArrayList&lt;&gt;();</div><div class="line">            handleAbortedSends(responses);</div><div class="line">            completeResponses(responses);</div><div class="line">            return responses;</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        long metadataTimeout = metadataUpdater.maybeUpdate(now);</div><div class="line">        try &#123;</div><div class="line">            this.selector.poll(Utils.min(timeout, metadataTimeout, requestTimeoutMs));</div><div class="line">        &#125; catch (IOException e) &#123;</div><div class="line">            log.error(&quot;Unexpected error during I/O&quot;, e);</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        // process completed actions</div><div class="line">        long updatedNow = this.time.milliseconds();</div><div class="line">        List&lt;ClientResponse&gt; responses = new ArrayList&lt;&gt;();</div><div class="line">        handleCompletedSends(responses, updatedNow);</div><div class="line">        //更新metaData</div><div class="line">        handleCompletedReceives(responses, updatedNow);</div><div class="line">        handleDisconnections(responses, updatedNow);</div><div class="line">        handleConnections();</div><div class="line">        handleInitiateApiVersionRequests(updatedNow);</div><div class="line">        handleTimedOutRequests(responses, updatedNow);</div><div class="line">        completeResponses(responses);</div><div class="line"></div><div class="line">        return responses;</div><div class="line">    &#125;</div><div class="line"> &#125;</div></pre></td></tr></table></figure>
+<p>handleCompletedReceives()是对broker response的处理handler</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div></pre></td><td class="code"><pre><div class="line">private void handleCompletedReceives(List&lt;ClientResponse&gt; responses, long now) &#123;</div><div class="line">        for (NetworkReceive receive : this.selector.completedReceives()) &#123;</div><div class="line">            String source = receive.source();</div><div class="line">            InFlightRequest req = inFlightRequests.completeNext(source);</div><div class="line">            Struct responseStruct = parseStructMaybeUpdateThrottleTimeMetrics(receive.payload(), req.header,</div><div class="line">                throttleTimeSensor, now);</div><div class="line">            if (log.isTraceEnabled()) &#123;</div><div class="line">                log.trace(&quot;Completed receive from node &#123;&#125;, for key &#123;&#125;, received &#123;&#125;&quot;, req.destination,</div><div class="line">                    req.header.apiKey(), responseStruct.toString());</div><div class="line">            &#125;</div><div class="line">            AbstractResponse body = createResponse(responseStruct, req.header);</div><div class="line">            if (req.isInternalRequest &amp;&amp; body instanceof MetadataResponse)</div><div class="line">                metadataUpdater.handleCompletedMetadataResponse(req.header, now, (MetadataResponse) body);</div><div class="line">            else if (req.isInternalRequest &amp;&amp; body instanceof ApiVersionsResponse)</div><div class="line">                handleApiVersionsResponse(responses, req, now, (ApiVersionsResponse) body);</div><div class="line">            else</div><div class="line">                responses.add(req.completed(body, now));</div><div class="line">        &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>这里我们关注metadataResponse的处理</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div></pre></td><td class="code"><pre><div class="line">@Override</div><div class="line">        public void handleCompletedMetadataResponse(RequestHeader requestHeader, long now, MetadataResponse response) &#123;</div><div class="line">            this.metadataFetchInProgress = false;</div><div class="line">            Cluster cluster = response.cluster();</div><div class="line">            // check if any topics metadata failed to get updated</div><div class="line">            Map&lt;String, Errors&gt; errors = response.errors();</div><div class="line">            if (!errors.isEmpty())</div><div class="line">                log.warn(&quot;Error while fetching metadata with correlation id &#123;&#125; : &#123;&#125;&quot;, requestHeader.correlationId(), errors);</div><div class="line"></div><div class="line">            // don&apos;t update the cluster if there are no valid nodes...the topic we want may still be in the process of being</div><div class="line">            // created which means we will get errors and no nodes until it exists</div><div class="line">            if (cluster.nodes().size() &gt; 0) &#123;</div><div class="line">                this.metadata.update(cluster, response.unavailableTopics(), now);</div><div class="line">            &#125; else &#123;</div><div class="line">                log.trace(&quot;Ignoring empty metadata response with correlation id &#123;&#125;.&quot;, requestHeader.correlationId());</div><div class="line">                this.metadata.failedUpdate(now);</div><div class="line">            &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>这里真正执行Metadata的更新</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div></pre></td><td class="code"><pre><div class="line">public synchronized void update(Cluster cluster, Set&lt;String&gt; unavailableTopics, long now) &#123;</div><div class="line">        Objects.requireNonNull(cluster, &quot;cluster should not be null&quot;);</div><div class="line"></div><div class="line">        this.needUpdate = false;</div><div class="line">        this.lastRefreshMs = now;</div><div class="line">        this.lastSuccessfulRefreshMs = now;</div><div class="line">        this.version += 1;</div><div class="line"></div><div class="line">        if (topicExpiryEnabled) &#123;</div><div class="line">            // Handle expiry of topics from the metadata refresh set.</div><div class="line">            for (Iterator&lt;Map.Entry&lt;String, Long&gt;&gt; it = topics.entrySet().iterator(); it.hasNext(); ) &#123;</div><div class="line">                Map.Entry&lt;String, Long&gt; entry = it.next();</div><div class="line">                long expireMs = entry.getValue();</div><div class="line">                if (expireMs == TOPIC_EXPIRY_NEEDS_UPDATE)</div><div class="line">                    entry.setValue(now + TOPIC_EXPIRY_MS);</div><div class="line">                else if (expireMs &lt;= now) &#123;</div><div class="line">                    it.remove();</div><div class="line">                    log.debug(&quot;Removing unused topic &#123;&#125; from the metadata list, expiryMs &#123;&#125; now &#123;&#125;&quot;, entry.getKey(), expireMs, now);</div><div class="line">                &#125;</div><div class="line">            &#125;</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        for (Listener listener: listeners)</div><div class="line">            listener.onMetadataUpdate(cluster, unavailableTopics);</div><div class="line"></div><div class="line">        String previousClusterId = cluster.clusterResource().clusterId();</div><div class="line"></div><div class="line">        if (this.needMetadataForAllTopics) &#123;</div><div class="line">            // the listener may change the interested topics, which could cause another metadata refresh.</div><div class="line">            // If we have already fetched all topics, however, another fetch should be unnecessary.</div><div class="line">            this.needUpdate = false;</div><div class="line">            this.cluster = getClusterForCurrentTopics(cluster);</div><div class="line">        &#125; else &#123;</div><div class="line">            this.cluster = cluster;</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        // The bootstrap cluster is guaranteed not to have any useful information</div><div class="line">        if (!cluster.isBootstrapConfigured()) &#123;</div><div class="line">            String clusterId = cluster.clusterResource().clusterId();</div><div class="line">            if (clusterId == null ? previousClusterId != null : !clusterId.equals(previousClusterId))</div><div class="line">                log.info(&quot;Cluster ID: &#123;&#125;&quot;, cluster.clusterResource().clusterId());</div><div class="line">            clusterResourceListeners.onUpdate(cluster.clusterResource());</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        notifyAll();</div><div class="line">        log.debug(&quot;Updated cluster metadata version &#123;&#125; to &#123;&#125;&quot;, this.version, this.cluster);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>上面就是metadata的更新逻辑，实际上kafka实现了两种metadata的更新规则，可以通过producerConfig配置项来完成：</p>
+<ul>
+<li><p>周期性的更新: 每隔一段时间更新一次，这个通过 Metadata的lastRefreshMs, lastSuccessfulRefreshMs 这2个字段来实现<br>配置项为metadata.max.age.ms //缺省300000，即10分钟1次</p>
+</li>
+<li><p>失效检测，强制更新：检查到metadata失效以后，调用metadata.requestUpdate()强制更新。 requestUpdate()函数里面其实什么都没做，就是把needUpdate置成了false。每次poll的时候，都检查这2种更新机制，达到了，就触发更新。</p>
+</li>
+</ul>
+<p>kafkaProducer中调用metadata.requestUpdate()的地方就是主动把metadata主动置为失效。分析以下场景会有此做法：</p>
+<ul>
+<li>与broker连接初始化的时候</li>
+<li>poll数据的时候，连接断了</li>
+<li>请求超时</li>
+<li>消息发送时，有partition的leader没找到</li>
+<li>返回的response和请求对不上的时候</li>
+</ul>
+<p>总之数据不能正常发送或者数据不同步时都人为metadata有问题，需要更新。</p>
+<p>还有一点注意的是：更新的时候，是从metadata保存的所有Node，或者说Broker中，选负载最小的那个，也就是当前接收请求最少的那个。向其发送MetadataRequest请求，获取新的Cluster对象。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2018/03/08/kafka-producer-nio/" data-id="cjejspo2y0003yq2mnqydylsa" class="article-share-link">Share</a>
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kafka/">kafka</a></li></ul>
+
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+  
+    <a href="/2017/11/20/kafka-zero-copy/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">kafka学习笔记（二）zero-copy使用分析</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签</h3>
+    <div class="widget">
+      <ul class="tag-list"><li class="tag-list-item"><a class="tag-list-link" href="/tags/guava/">guava</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/java/">java</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/java-IO/">java IO</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/jvm/">jvm</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/kafka/">kafka</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/redis/">redis</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签云</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/guava/" style="font-size: 15px;">guava</a> <a href="/tags/java/" style="font-size: 20px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 15px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/设计模式/" style="font-size: 15px;">设计模式</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">归档</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/03/">三月 2018</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">最新文章</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2018/03/08/kafka-producer-nio/">kafka学习笔记（三）- KafkaProducer分析</a>
+          </li>
+        
+          <li>
+            <a href="/2017/11/20/kafka-zero-copy/">kafka学习笔记（二）zero-copy使用分析</a>
+          </li>
+        
+          <li>
+            <a href="/2017/11/19/kafka-one/">kafka学习笔记（一）kafka简介</a>
+          </li>
+        
+          <li>
+            <a href="/2017/09/24/dynamic-proxy/">ASM初探</a>
+          </li>
+        
+          <li>
+            <a href="/2017/08/27/mybatis-cache/">mybatis缓存体系</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      &copy; 2018 zhusheng<br>
+      Powered by <a href="http://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+  <link rel="stylesheet" href="/fancybox/jquery.fancybox.css">
+  <script src="/fancybox/jquery.fancybox.pack.js"></script>
+
+
+<script src="/js/script.js"></script>
+
+  </div>
+</body>
+</html>

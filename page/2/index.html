@@ -68,6 +68,67 @@
       <div class="outer">
         <section id="main">
   
+    <article id="post-obejct-struct" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2017/07/04/obejct-struct/" class="article-date">
+  <time datetime="2017-07-04T11:49:46.000Z" itemprop="datePublished">2017-07-04</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2017/07/04/obejct-struct/">对象内存布局</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p>  关于jvm中对象是如何分配内存的，在<a href="https://doubleclouder.github.io/2017/07/03/new-object-1/" target="_blank" rel="external">jvm源码分析之内存分配</a>中已经做过分析，现在我们就来讨论一下内存分配之后是如何布局的，简单的讲就是分配的内存区域里面到底存的是什么。</p>
+<p> <img src="http://osjt45oaj.bkt.clouddn.com/struct1.png" alt=""><br> 上图引用自《java虚拟机精讲》。图中可以一目了然的看出对象的内存布局。存储对象实例信息的内存布局主要有两部分构成：对象头和实例数据以及padding区域。</p>
+<ul>
+<li>对象头：分成两部分Mark Word和元数据指针。Mark Word主要用于存储对象运行时的数据信息。比如HashCode、GC分代年龄、锁状态标志、线程持有的锁、偏向线程ID、偏向时间戳等。而元数据指针则是指向方法区中目标类的类型信息，通过元数据指针可以指明当年对象是哪个类的实例。</li>
+<li>实例数据：主要用于存储定义在当前对象中的各种类型的字段信息（包括派生于超类的字段）。</li>
+<li>padding区：仅仅起着占位符的作用，jvm要求对象大小必须是8的倍数，若不是需要填充补齐，它不是必要存在的。</li>
+</ul>
+<p>当理解了Java对象在内存中如何存储之后，接下来我们看下jvm中是如何表达java类和对象实例的，底层jvm需要一套完整的内部对象表示机制，这种机制称为OOP-Klass模型，OOP(Ordinay Object Pionter)对象指针用于描述实例对象，而Klass则是用于描述对象实例的类型，对应上层java中的Class(之所以命名为Klass，是因为Class是c++中的关键字)。OOP与Klass是两个相互独立又彼此关联的模块。在JVM中对象头由OOP对象instanceOopDesc来表示，对象头中元数据指针锁指向的当前对象的目标类型是由Klass中的instanceKlass表示。栈中本地变量表中的引用变量指向堆上InstanceOopDesc对象，而instanceOopDesc对象持有只有instanceKlass的地址指针，如下图所示：</p>
+<p><img src="http://osjt45oaj.bkt.clouddn.com/struct2.png" alt=""><br>下面重点分析一下mark word和实例数据部分。</p>
+<h1 id="Mark-Word"><a href="#Mark-Word" class="headerlink" title="Mark Word"></a>Mark Word</h1><p>-<br>Mark Word具有非固定的数据结构，以便在极小的空间内存储尽量多的信息。JVM可以通过Java对象的元数据确定对象长度，但是对于数组不行。如果对象是一个数组，对象头必须有一块儿用于记录数组长度的数据，这么做的目的是gc扫描时会根据对象头直接确定下一个对象的地址，不需要扫描整个对象空间。对于对象头长度而言，32bit虚拟机一定是32bit+32bit，即8字节；64bit虚拟机若没有开启了压缩指针，是64bit+64bit，即16字节，若开启了压缩指针，是64bit+32bit，即12字节（不是8bit的倍数）<br>-XX:+UseCompressedOops：开启压缩指针。</p>
+<h1 id="实例数据"><a href="#实例数据" class="headerlink" title="实例数据"></a>实例数据</h1><p>-<br>上面讲到实例数据部分存的是对象的各种类型的字段信息，包括基本类型和引用类型。我们在定义一个java类的时候不会去考虑字段的顺序，例如类A</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">public class A&#123;</div><div class="line">   double x;</div><div class="line">   float y;</div><div class="line">   int z;</div><div class="line">   long a;</div><div class="line">   String s;</div><div class="line">   ... </div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>但是jvm在创建对象的时候会按照一定的顺序去排列这些字段，顺序如下：</p>
+<ol>
+<li>double/long       8byte</li>
+<li>float/int         4byte</li>
+<li>short/char        2byte</li>
+<li>byte/boolean      1byte</li>
+<li>oop        4/8byte</li>
+</ol>
+<p>jvm默认以这种顺序去排列字段，这样做的原因是cpu读取内存时是按寄存器的大小单位（64位机器为64bit）载入的，如果载入的数据横跨两个64bit,要操作该数据的话必须两次读取加上组合移位，会产生效率问题，甚至会引发异常，所以必须要求数据对齐,同时也可以节省内存。<br>这种顺序也是可以更改的。通过指定jvm参数-XX:fIeldsAllocationStyle=mode，缺省状态下，jvm默认mode=1,mode还可以为0和2。为0时oop位于前面；mode=2时会将当前类和超类的oop字段放在一起，mode为0或1时会将派生类和超类的基本按照上述规则排在一起，oop类型位置不变，mode=2则也会将oop类型放在一起。按照jvm代码的注释可能更清晰</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">mode=0,Fields order: oops, longs/doubles, ints, shorts/chars, bytes, padded fields</div><div class="line">mode=1:Fields order: longs/doubles, ints, shorts/chars, bytes, oops, padded fields</div><div class="line">mode=2:Fields allocation: oops fields in super and sub classes are together.</div></pre></td></tr></table></figure>
+<p>相当mode=0和1，mode=2的优势是可以减少gc时创建的OopMapBlock对象的数量。OopMapBlock结构如下：<br><img src="http://osjt45oaj.bkt.clouddn.com/struct3.png" alt=""><br>我们都知道gc时需要从gc root对象开始定位所有的存活的对象，那么就需要根据引用链记录对象指针，而OopMapBlock对象就是用来存放对象指针的，它有两个字段offset(偏移量)和对象个数(count),如果oop是连续的，对于同一个对象只需要一个OopMapBlock对象记录oop开始位置的便宜量和oop的个数就ok,否则需要两个oopMapBlock。另外一个好处是连续的对象区域使得cache line的使用效率更高. 试想如果父对象和子对象的对象引用区域不连续, 而中间插入了原始类型字段的话, 那么在做GC对象扫描时, 很可能需要跨cache line读取才能完成扫描.</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cjepe9oa7000eqz2mzvckxp3g" class="article-share-link">Share</a>
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/jvm/">jvm</a></li></ul>
+
+    </footer>
+  </div>
+  
+</article>
+
+
+  
     <article id="post-new-object-1" class="article article-type-post" itemscope itemprop="blogPost">
   <div class="article-meta">
     <a href="/2017/07/03/new-object-1/" class="article-date">
@@ -127,7 +188,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjemvnzmo000iu92mn722q092" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjepe9oa4000aqz2misfv7zn7" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -170,7 +231,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cjemvnzly0000u92m4316fhtg" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cjepe9o9u0004qz2mgzr4j5wj" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -210,7 +271,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjemvnzn0000ru92mcj3mj97a" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjepe9oal000sqz2m0vdjl3dm" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -279,7 +340,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/06/reactor-I-O/" data-id="cjemvnzmy000pu92mn6lx4jye" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/06/reactor-I-O/" data-id="cjepe9oah000nqz2mr6nfeew1" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java-IO/">java IO</a></li></ul>
@@ -322,7 +383,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cjemvnzmg0009u92mu74w12pv" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cjepe9o9o0002qz2mbuc1qq2q" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>
@@ -370,7 +431,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cjemvnzm70003u92mjl7qdbm1" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cjepe9o9m0001qz2mzbk0sauk" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -417,7 +478,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">归档</h3>
     <div class="widget">
-      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/03/">三月 2018</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/05/">五月 2018</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/03/">三月 2018</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
     </div>
   </div>
 
@@ -428,6 +489,10 @@
     <h3 class="widget-title">最新文章</h3>
     <div class="widget">
       <ul>
+        
+          <li>
+            <a href="/2018/05/02/concurrent-1-cas/">并发必会篇之CAS</a>
+          </li>
         
           <li>
             <a href="/2018/03/11/kafka-4/">kafka学习笔记（四）-kafkaProducer NIO模型</a>
@@ -443,10 +508,6 @@
         
           <li>
             <a href="/2017/11/19/kafka-one/">kafka学习笔记（一）kafka简介</a>
-          </li>
-        
-          <li>
-            <a href="/2017/09/24/dynamic-proxy/">ASM初探</a>
           </li>
         
       </ul>

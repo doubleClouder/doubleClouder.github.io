@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>并发必会篇之ThreadLocal | clouder的博客</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="description" content="前言我们知道在并发编程中，对共享变量的访问必须是非常小心的，因为少有不慎就可能引起线程安全问题，在保证线程安全的前提下，我们往往需要考虑并发场景的性能问题。但在某些场景下，变量是同一个,但是每个线程只需要使用变量的一个副本，独立变化，这时候也就不用考虑并发问题，这就是threadLocal的作用。 ThreadLocalthreadLocal经典的应用场景是用来解决数据库连接、session管理。">
+<meta name="keywords" content="并发">
+<meta property="og:type" content="article">
+<meta property="og:title" content="并发必会篇之ThreadLocal">
+<meta property="og:url" content="http://yoursite.com/2017/05/13/concurrent2-threadLocal/index.html">
+<meta property="og:site_name" content="clouder的博客">
+<meta property="og:description" content="前言我们知道在并发编程中，对共享变量的访问必须是非常小心的，因为少有不慎就可能引起线程安全问题，在保证线程安全的前提下，我们往往需要考虑并发场景的性能问题。但在某些场景下，变量是同一个,但是每个线程只需要使用变量的一个副本，独立变化，这时候也就不用考虑并发问题，这就是threadLocal的作用。 ThreadLocalthreadLocal经典的应用场景是用来解决数据库连接、session管理。">
+<meta property="og:updated_time" content="2018-03-14T03:37:57.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="并发必会篇之ThreadLocal">
+<meta name="twitter:description" content="前言我们知道在并发编程中，对共享变量的访问必须是非常小心的，因为少有不慎就可能引起线程安全问题，在保证线程安全的前提下，我们往往需要考虑并发场景的性能问题。但在某些场景下，变量是同一个,但是每个线程只需要使用变量的一个副本，独立变化，这时候也就不用考虑并发问题，这就是threadLocal的作用。 ThreadLocalthreadLocal经典的应用场景是用来解决数据库连接、session管理。">
+  
+    <link rel="alternate" href="/atom.xml" title="clouder的博客" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png">
+  
+  
+    <link href="//fonts.googleapis.com/css?family=Source+Code+Pro" rel="stylesheet" type="text/css">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  
+
+</head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">clouder的博客</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">在学习的道路上不断成长。。</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+          <a id="nav-rss-link" class="nav-icon" href="/atom.xml" title="RSS Feed"></a>
+        
+        <a id="nav-search-btn" class="nav-icon" title="搜索"></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://yoursite.com"></form>
+      </div>
+    </div>
+  </div>
+</header>
+      <div class="outer">
+        <section id="main"><article id="post-concurrent2-threadLocal" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2017/05/13/concurrent2-threadLocal/" class="article-date">
+  <time datetime="2017-05-13T13:18:17.000Z" itemprop="datePublished">2017-05-13</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="article-title" itemprop="name">
+      并发必会篇之ThreadLocal
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>我们知道在并发编程中，对共享变量的访问必须是非常小心的，因为少有不慎就可能引起线程安全问题，在保证线程安全的前提下，我们往往需要考虑并发场景的性能问题。但在某些场景下，变量是同一个,但是每个线程只需要使用变量的一个副本，独立变化，这时候也就不用考虑并发问题，这就是threadLocal的作用。</p>
+<h1 id="ThreadLocal"><a href="#ThreadLocal" class="headerlink" title="ThreadLocal"></a>ThreadLocal</h1><p>threadLocal经典的应用场景是用来解决数据库连接、session管理。<br>我们先看这样一个数据库连接的例子：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div></pre></td><td class="code"><pre><div class="line">class ConnectionManager &#123;</div><div class="line">     </div><div class="line">    private static Connection connect = null;</div><div class="line">     </div><div class="line">    public static Connection openConnection() &#123;</div><div class="line">        if(connect == null)&#123;</div><div class="line">            connect = DriverManager.getConnection();</div><div class="line">        &#125;</div><div class="line">        return connect;</div><div class="line">    &#125;</div><div class="line">     </div><div class="line">    public static void closeConnection() &#123;</div><div class="line">        if(connect!=null)</div><div class="line">            connect.close();</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>这是一个数据连接管理类，很明显在并发情况有线程安全问题：可能出现多个线程同时调用openConnection从而创建多个连接，导致连接泄露；再有一个线程使用连接时，另一个线程调用了close方法，导致连接失效。实际上数据库连接并不需要是单例的，每个线程只要能独立维护自己的连接就可以，但是将OpenConnection方法改成每次调用都创建新的连接，会造成连接频繁创建销毁，服务端压力过重。</p>
+<p>这时候使用ThreadLocal可以方便的解决：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line">private static ThreadLocal&lt;Connection&gt; connectionHolder</div><div class="line">= new ThreadLocal&lt;Connection&gt;() ;</div><div class="line">public Connection getConnection() &#123;</div><div class="line">    Connection conn = (Connection)connectionHolder.get();</div><div class="line">    if(conn == null)&#123;</div><div class="line">    conn = connectionManager.getConnection();</div><div class="line">    connectionHolder.set(conn)</div><div class="line">   &#125;</div><div class="line">   return conn;</div><div class="line">&#125;;</div><div class="line"> </div><div class="line">public static Connection getConnection() &#123;</div><div class="line">return connectionHolder.get();</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>这样每个线程都会创建自己的连接,避免了并发问题，同时也避免了连接泛滥；ThreadLocal说白了就是为了线程绑定公共资源，其目的就是为了是每个线程能够隔离公共资源。</p>
+<p>下面从代码层面分析一下ThreadLocal如何实现这种隔离的：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line">public T get() &#123;</div><div class="line">        Thread t = Thread.currentThread();</div><div class="line">        ThreadLocalMap map = getMap(t);</div><div class="line">        if (map != null) &#123;</div><div class="line">            ThreadLocalMap.Entry e = map.getEntry(this);</div><div class="line">            if (e != null) &#123;</div><div class="line">                @SuppressWarnings(&quot;unchecked&quot;)</div><div class="line">                T result = (T)e.value;</div><div class="line">                return result;</div><div class="line">            &#125;</div><div class="line">        &#125;</div><div class="line">        return setInitialValue();</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
+<p>上面是threadLocal的get方法，当我们调用get的时候，首先会获取当前线程，然后拿到线程的ThreadLocalMap。Thread中维护一个threadLocalMap,它是ThreadLocal的一个静态内部类,它以threadLocal对象作为键，值为该threadLocal在线程内部的value;</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">//Thread</div><div class="line">ThreadLocalMap threadLocals = null;</div><div class="line"> ThreadLocalMap inheritableThreadLocals = null;</div></pre></td></tr></table></figure>
+<p>继续看get方法，如果map不为空并且map中存在该threadLocal的值则直接取出value,否则进行setInitialValue().其实就是在线程内存创建一个ThreadLocalMap的过程。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line">private T setInitialValue() &#123;</div><div class="line">        T value = initialValue();</div><div class="line">        Thread t = Thread.currentThread();</div><div class="line">        ThreadLocalMap map = getMap(t);</div><div class="line">        if (map != null)</div><div class="line">            map.set(this, value);</div><div class="line">        else</div><div class="line">            createMap(t, value);</div><div class="line">        return value;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
+<h1 id="ThreadLocalMap"><a href="#ThreadLocalMap" class="headerlink" title="ThreadLocalMap"></a>ThreadLocalMap</h1><p>每个线程内部都一个一个ThreadLocal.ThreadLocalMap对象，它是ThreadLocal一个内部类，保存线程用到的所有threadLocal及其value。</p>
+<p>TheadLocalMap.Entry继承weakReference,是key(ThreadLocal对象)和value线程内部值的容  器。一旦threadLocal对象没有了强引用，所有线程中map中的key就会被回收，value此时不会被回收，下次get/set操作时探测到有key被回收的entry时，会回收value,会将value设成null.这个过程和java.util.weakHashMap类似。</p>
+<p> 计算hashcode是共享一个AtomicInteger的nexthashcode 从0开始以一个间隔自增，然后根据hashcode &amp;(tablelength-1)定位桶。ThreadLocalMap中发生hash冲突时，不是像HashMap这样用链表来解决冲突，而是是将索引++，放到下一个索引处来解决冲突。</p>
+<p> ThreadLocalMap的回收随着线程销毁而回收。一旦线程退出，Thread对象被回收，map中的value也就被回收，但是线程池中的线程永远不会被回收，只会阻塞，如果队列中的某个任务向ThreadLocalput了一个对象，但任务结束后并未清空，那么这个对象在ThreadLocal的下一次put或clear前永远不会被GC；这种情况下，假如线程池有200个线程，那么一个ThreadLocal最多可能造成200个对象的内存泄露。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2017/05/13/concurrent2-threadLocal/" data-id="cjeqjchvt0001642mvti0p740" class="article-share-link">Share</a>
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
+
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+    <a href="/2017/07/03/new-object-1/" id="article-nav-newer" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Newer</strong>
+      <div class="article-nav-title">
+        
+          jvm源码分析之内存分配
+        
+      </div>
+    </a>
+  
+  
+    <a href="/2017/05/02/concurrent-1-cas/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">并发必会篇之CAS</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签</h3>
+    <div class="widget">
+      <ul class="tag-list"><li class="tag-list-item"><a class="tag-list-link" href="/tags/guava/">guava</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/java/">java</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/java-IO/">java IO</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/jvm/">jvm</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/kafka/">kafka</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/redis/">redis</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/并发/">并发</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签云</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/guava/" style="font-size: 15px;">guava</a> <a href="/tags/java/" style="font-size: 20px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 15px;">并发</a> <a href="/tags/设计模式/" style="font-size: 15px;">设计模式</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">归档</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/03/">三月 2018</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">最新文章</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2018/03/11/kafka-4/">kafka学习笔记（四）-kafkaProducer NIO模型</a>
+          </li>
+        
+          <li>
+            <a href="/2018/03/08/kafka-producer-nio/">kafka学习笔记（三）- KafkaProducer分析</a>
+          </li>
+        
+          <li>
+            <a href="/2017/11/20/kafka-zero-copy/">kafka学习笔记（二）zero-copy使用分析</a>
+          </li>
+        
+          <li>
+            <a href="/2017/11/19/kafka-one/">kafka学习笔记（一）kafka简介</a>
+          </li>
+        
+          <li>
+            <a href="/2017/09/24/dynamic-proxy/">ASM初探</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      &copy; 2018 zhusheng<br>
+      Powered by <a href="http://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+  <link rel="stylesheet" href="/fancybox/jquery.fancybox.css">
+  <script src="/fancybox/jquery.fancybox.pack.js"></script>
+
+
+<script src="/js/script.js"></script>
+
+  </div>
+</body>
+</html>

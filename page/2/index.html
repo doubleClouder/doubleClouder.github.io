@@ -127,10 +127,65 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjeuzqelq000ltv2mxhsz64hx" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjew98f77000mrt2mvpg2qqeo" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
+
+    </footer>
+  </div>
+  
+</article>
+
+
+  
+    <article id="post-concurrent-delayQueue" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2017/05/18/concurrent-delayQueue/" class="article-date">
+  <time datetime="2017-05-18T01:34:38.000Z" itemprop="datePublished">2017-05-18</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2017/05/18/concurrent-delayQueue/">延时队列delayQueue与延时任务实现分析</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>在探讨我们标题的内容之前，我们先来看下java要实现一个简单的延迟任务该如何实现（只考虑单机情况）。延迟任务是指由一个事件触发，经过一段时间触发另一个事件；比如用户开通会员一分钟后给用户发短信，比如下单五分钟内未支付取消订单。延迟任务没有固定开始时间，它有别于固定周期执行的定时任务。</p>
+<p>那么如何实现这种延时执行的任务呢？最简单的方法就是数据库轮询，所有的订单一般存在db或者缓存中，我们通过一个线程或者使用quartz等定时任务周期的扫描订单，找到超时的订单更改状态，这种实现最为简单。但是如果数据量大并且扫描频率高的话会带来严重的性能问题。</p>
+<p>下面我们看下延迟队列delayQueue是如何解决这个问题的。</p>
+<h1 id="delayQueue"><a href="#delayQueue" class="headerlink" title="delayQueue"></a>delayQueue</h1><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div></pre></td><td class="code"><pre><div class="line">public class DelayQueue&lt;E extends Delayed&gt; extends AbstractQueue&lt;E&gt;</div><div class="line">    implements BlockingQueue&lt;E&gt; &#123;</div><div class="line"></div><div class="line">    private final transient ReentrantLock lock = new ReentrantLock();</div><div class="line">    private final PriorityQueue&lt;E&gt; q = new PriorityQueue&lt;E&gt;();</div><div class="line"></div><div class="line">    /**</div><div class="line">     * Thread designated to wait for the element at the head of</div><div class="line">     * the queue.  This variant of the Leader-Follower pattern</div><div class="line">     * (http://www.cs.wustl.edu/~schmidt/POSA/POSA2/) serves to</div><div class="line">     * minimize unnecessary timed waiting.  When a thread becomes</div><div class="line">     * the leader, it waits only for the next delay to elapse, but</div><div class="line">     * other threads await indefinitely.  The leader thread must</div><div class="line">     * signal some other thread before returning from take() or</div><div class="line">     * poll(...), unless some other thread becomes leader in the</div><div class="line">     * interim.  Whenever the head of the queue is replaced with</div><div class="line">     * an element with an earlier expiration time, the leader</div><div class="line">     * field is invalidated by being reset to null, and some</div><div class="line">     * waiting thread, but not necessarily the current leader, is</div><div class="line">     * signalled.  So waiting threads must be prepared to acquire</div><div class="line">     * and lose leadership while waiting.</div><div class="line">     */</div><div class="line">    private Thread leader = null;</div><div class="line"></div><div class="line">    /**</div><div class="line">     * Condition signalled when a newer element becomes available</div><div class="line">     * at the head of the queue or a new thread may need to</div><div class="line">     * become leader.</div><div class="line">     */</div><div class="line">    private final Condition available = lock.newCondition();</div></pre></td></tr></table></figure>
+<p>delayQueue的内部包含四个元素：可重入锁、一个优先级队列、用于优化阻塞通知的线程leader以及用于阻塞通知的Condition。</p>
+<p>priorityQueue是一个非阻塞队列，它是一个最小堆的结构，这里不再详细分析。delayQueue其实就是在每次往优先级队列中添加元素,然后以元素的过期值作为排序因子,以此来达到先过期的元素排在对首的目的。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line">public boolean offer(E e) &#123;</div><div class="line">        final ReentrantLock lock = this.lock;</div><div class="line">        lock.lock();</div><div class="line">        try &#123;</div><div class="line">            q.offer(e);</div><div class="line">            if (q.peek() == e) &#123;</div><div class="line">                leader = null;</div><div class="line">                available.signal();</div><div class="line">            &#125;</div><div class="line">            return true;</div><div class="line">        &#125; finally &#123;</div><div class="line">            lock.unlock();</div><div class="line">        &#125;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
+<p>offer方法以加锁的方式往优先级队列中添加元素，如果元素在队首则设置leader为null 并唤醒等待的线程（至于这么做的目的我们等会分析）。<br>继续看下take操作：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div></pre></td><td class="code"><pre><div class="line">public E take() throws InterruptedException &#123;</div><div class="line">        final ReentrantLock lock = this.lock;</div><div class="line">        lock.lockInterruptibly();</div><div class="line">        try &#123;</div><div class="line">            for (;;) &#123;</div><div class="line">                E first = q.peek();</div><div class="line">                if (first == null)</div><div class="line">                    available.await();</div><div class="line">                else &#123;</div><div class="line">                    long delay = first.getDelay(NANOSECONDS);</div><div class="line">                    if (delay &lt;= 0)</div><div class="line">                        return q.poll();</div><div class="line">                    first = null; // don&apos;t retain ref while waiting</div><div class="line">                    if (leader != null)</div><div class="line">                        available.await();</div><div class="line">                    else &#123;</div><div class="line">                        Thread thisThread = Thread.currentThread();</div><div class="line">                        leader = thisThread;</div><div class="line">                        try &#123;</div><div class="line">                            available.awaitNanos(delay);</div><div class="line">                        &#125; finally &#123;</div><div class="line">                            if (leader == thisThread)</div><div class="line">                                leader = null;</div><div class="line">                        &#125;</div><div class="line">                    &#125;</div><div class="line">                &#125;</div><div class="line">            &#125;</div><div class="line">        &#125; finally &#123;</div><div class="line">            if (leader == null &amp;&amp; q.peek() != null)</div><div class="line">                available.signal();</div><div class="line">            lock.unlock();</div><div class="line">        &#125;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
+<p>首先加锁，这没什么好说的。然后拿到优先级队列头部元素，如果为null,说明队列为空，则线程阻塞；否则获取该元素的delay值，若delay值等于0，说明该元素到达延迟时间，是可用状态，则调用poll方法取出元素，直接返回；如果delay时间值不为0，也就是还是不可用状态，则释放对队首元素的引用（避免内存泄露）；接着判断leader是否为空，不为空阻塞当前线程（说明已经有线程早一步在等待该元素）。如果leader元素为空的话,把当前线程赋值给leader元素,然后阻塞delay的时间,即等待队首到达可以出队的时间；循环以上步骤。最后在finally中，判断leader为空并且还有后续节点唤醒其他等待消费的线程。</p>
+<p>通过以上分析，想必大家已经认识到leader的作用，它是用来用来减少不必要的等待时间。在多个消费者去take的情况，只能有一个线程去等待元素的delay时间然后取走该元素，这个线程就是最先把自己设为leader的线程，其他线程只能等待下一个元素。</p>
+<p>单机下不考虑内存占用情况，使用delayQueue是实现延迟任务的一个有效手段，不仅没有定时扫描的巨大开销，还能保证任务延迟率在一个较低的水平。</p>
+<h1 id="wheelTimer"><a href="#wheelTimer" class="headerlink" title="wheelTimer"></a>wheelTimer</h1><p>单机情况下，还有一个解决延迟任务行之有效的手段就是时间轮。</p>
+<p><img src="http://osjt45oaj.bkt.clouddn.com/wheelTimer.jpg" alt=""></p>
+<p>时间轮一种很巧妙的数据结构，如上图，就像一个钟盘，有8个“槽”，可以代表未来的一个时间。如果以秒为单位，中间的指针每隔一秒钟转动到新的“槽”上面。我们加入一个新的延迟任务时, 会根据延迟任务的超时时间与时间轮开始时间算出来它应该在的槽位。如果当前指针指在1上面，我们将入一个5秒后执行的任务，那么这个任务就会放在6这个槽上。那如果需要在20秒之后执行怎么办，由于这个环形结构槽数只到8，所以指针需要多转2圈。位置是在2圈之后的5上面（20 % 8 + 1）。这个圈数需要记录在槽中的数据结构里面。这个数据结构最重要的是两个指针，一个是触发任务的函数指针，另外一个是触发的总第几圈数。时间轮可以用简单的数组或者是环形链表来实现。</p>
+<p>netty中已经给出了这种时间轮算法的实现HashedWheelTimer，使用也很简单，只需要通过hashedWheelTimer.newTimeOut(TimerTask task, long delay, TimeUnit unit)方法加入延迟任务。<br>大家有兴趣可以去看一下io.netty.util.HashedWheelTimer的代码，设计相当巧妙。</p>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>delayQueue的一个主要应用就是延迟任务的调度，不考虑分布式任务情况下，使用延迟队列可以方便地解决；关于延迟任务，我们还给出了一种有效的方案：时间轮。在高负荷情况下，时间轮会比delayQueue延时率更低，因为delayQueue在高负载情况，线程争用更加激烈，并行消费的能力不高。</p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2017/05/18/concurrent-delayQueue/" data-id="cjew98f6c0001rt2mxsd30z44" class="article-share-link">Share</a>
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
 
     </footer>
   </div>
@@ -182,7 +237,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/13/concurrent2-threadLocal/" data-id="cjeuzqel50004tv2mta0s27es" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/13/concurrent2-threadLocal/" data-id="cjew98f6l0005rt2mspmbs1c3" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -258,7 +313,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/02/concurrent-1-cas/" data-id="cjeuzqeky0001tv2mi8vbl2v0" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/02/concurrent-1-cas/" data-id="cjew98f6j0004rt2mdfkf37eg" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -301,7 +356,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cjeuzqeks0000tv2mu980ikfp" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cjew98f660000rt2m4t9e7rn8" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -341,7 +396,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjeuzqem0000stv2m3it0hnb7" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjew98f7g000urt2mx0wvep7r" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -410,7 +465,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/06/reactor-I-O/" data-id="cjeuzqelt000ntv2m3rfq9wua" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/06/reactor-I-O/" data-id="cjew98f7e000srt2m3u9li3d7" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java-IO/">java IO</a></li></ul>
@@ -453,7 +508,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cjeuzqelc0009tv2mxw3rs3bn" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cjew98f6v000brt2mwftb4dsc" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>
@@ -501,7 +556,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cjeuzqel80005tv2mnbyg2wt3" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cjew98f6p0008rt2mjvc5v2sr" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -539,7 +594,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 15px;">guava</a> <a href="/tags/java/" style="font-size: 20px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 15px;">并发</a> <a href="/tags/设计模式/" style="font-size: 15px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 15px;">guava</a> <a href="/tags/java/" style="font-size: 20px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 15px;">设计模式</a>
     </div>
   </div>
 

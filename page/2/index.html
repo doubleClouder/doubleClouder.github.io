@@ -127,7 +127,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjewkhh0b000tcz2m7ajrwxks" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjewkx2re000ug32m6nj9j5qx" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -228,11 +228,16 @@
 </ul>
 <p>SequenceBarrier是消费者与Ringbuffer之间建立消费关系的媒介。</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line">public long waitFor(final long sequence)</div><div class="line">    throws AlertException, InterruptedException, TimeoutException</div><div class="line">&#123;</div><div class="line">    checkAlert();</div><div class="line"> </div><div class="line">    long availableSequence = waitStrategy.waitFor(sequence, cursorSequence, dependentSequence, this);</div><div class="line"> </div><div class="line">    if (availableSequence &lt; sequence)</div><div class="line">    &#123;</div><div class="line">        return availableSequence;</div><div class="line">    &#125;</div><div class="line"> </div><div class="line">    return sequencer.getHighestPublishedSequence(sequence, availableSequence);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>disruptor为什么快，因为它最大限度的利用起计算机资源，同时避免了锁的开销，线程预分配内存，批量处理，最大限度提高并行度；而且避免伪共享。</p>
+<p>参考：</p>
+<p><a href="https://tech.meituan.com/disruptor.html" target="_blank" rel="external">高性能队列——Disruptor</a></p>
+<p><a href="http://www.cnblogs.com/haiq/p/4112689.html" target="_blank" rel="external">Disruptor 极速体验
+</a></p>
 
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/06/18/cocurrent-disruptor/" data-id="cjewkhgz50000cz2mufjodwsj" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/06/18/cocurrent-disruptor/" data-id="cjewkx2qb0001g32mk0gp2esx" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -287,7 +292,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/18/concurrent-delayQueue/" data-id="cjewkhgzk0005cz2mwqc1enop" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/18/concurrent-delayQueue/" data-id="cjewkx2qn0008g32mavz5k7ue" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -351,7 +356,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/17/concurrent-blockingQueue/" data-id="cjewkhgzo000acz2mivhkwgpj" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/17/concurrent-blockingQueue/" data-id="cjewkx2qk0005g32mvl2oe9le" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -406,7 +411,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/13/concurrent2-threadLocal/" data-id="cjewkhgzm0008cz2mvqzzwrbm" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/13/concurrent2-threadLocal/" data-id="cjewkx2qp0009g32mjbcwu3s2" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -482,7 +487,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/02/concurrent-1-cas/" data-id="cjewkhgzh0004cz2m8lz274q6" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/02/concurrent-1-cas/" data-id="cjewkx2qg0004g32m2bghicj4" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -525,7 +530,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cjewkhgza0001cz2m9g6jdis5" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cjewkx2qf0003g32mhuwjhrhs" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -565,7 +570,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjewkhh0j0015cz2mfdjq83bp" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjewkx2rl0012g32mvbc94vmb" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -634,7 +639,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/06/reactor-I-O/" data-id="cjewkhh0e000ycz2mban889av" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/06/reactor-I-O/" data-id="cjewkx2rf000wg32mpwh3omyj" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java-IO/">java IO</a></li></ul>
@@ -677,7 +682,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cjewkhgzu000icz2moryafj77" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cjewkx2r0000hg32mvq9knmde" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>

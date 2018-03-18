@@ -17,7 +17,7 @@
 <meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/singleWriter.png">
 <meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/multWriterReader.png">
 <meta property="og:image" content="http://osjt45oaj.bkt.clouddn.com/multWriterWrite.png">
-<meta property="og:updated_time" content="2018-03-18T08:56:18.000Z">
+<meta property="og:updated_time" content="2018-03-18T09:08:31.000Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="无锁框架Disruptor">
 <meta name="twitter:description" content="前言LMAX是一种新型零售金融交易平台,它能够以很低的延迟产生大量交易。它能够在一个线程里每秒处理六百万的订单，业务逻辑处理完全运行在内存中，而它的核心就是Disruptor。Disruptor是开源的并发框架，它能够在无锁的情况下实现网络的Queue并发操作。 Disruptor设计原则 尽量保持单一写 避免使用锁，无锁化（volatile + CAS） 避免伪共享  为什么要无锁在多线程下，往">
@@ -163,11 +163,16 @@
 </ul>
 <p>SequenceBarrier是消费者与Ringbuffer之间建立消费关系的媒介。</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line">public long waitFor(final long sequence)</div><div class="line">    throws AlertException, InterruptedException, TimeoutException</div><div class="line">&#123;</div><div class="line">    checkAlert();</div><div class="line"> </div><div class="line">    long availableSequence = waitStrategy.waitFor(sequence, cursorSequence, dependentSequence, this);</div><div class="line"> </div><div class="line">    if (availableSequence &lt; sequence)</div><div class="line">    &#123;</div><div class="line">        return availableSequence;</div><div class="line">    &#125;</div><div class="line"> </div><div class="line">    return sequencer.getHighestPublishedSequence(sequence, availableSequence);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>disruptor为什么快，因为它最大限度的利用起计算机资源，同时避免了锁的开销，线程预分配内存，批量处理，最大限度提高并行度；而且避免伪共享。</p>
+<p>参考：</p>
+<p><a href="https://tech.meituan.com/disruptor.html" target="_blank" rel="external">高性能队列——Disruptor</a></p>
+<p><a href="http://www.cnblogs.com/haiq/p/4112689.html" target="_blank" rel="external">Disruptor 极速体验
+</a></p>
 
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/06/18/cocurrent-disruptor/" data-id="cjewkhgz50000cz2mufjodwsj" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/06/18/cocurrent-disruptor/" data-id="cjewkx2qb0001g32mk0gp2esx" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>

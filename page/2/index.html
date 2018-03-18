@@ -127,10 +127,115 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjew9mnas000ryj2mga65niml" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjewkhh0b000tcz2m7ajrwxks" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
+
+    </footer>
+  </div>
+  
+</article>
+
+
+  
+    <article id="post-cocurrent-disruptor" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2017/06/18/cocurrent-disruptor/" class="article-date">
+  <time datetime="2017-06-18T06:39:00.000Z" itemprop="datePublished">2017-06-18</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2017/06/18/cocurrent-disruptor/">无锁框架Disruptor</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>LMAX是一种新型零售金融交易平台,它能够以很低的延迟产生大量交易。它能够在一个线程里每秒处理六百万的订单，业务逻辑处理完全运行在内存中，而它的核心就是Disruptor。Disruptor是开源的并发框架，它能够在无锁的情况下实现网络的Queue并发操作。</p>
+<h1 id="Disruptor设计原则"><a href="#Disruptor设计原则" class="headerlink" title="Disruptor设计原则"></a>Disruptor设计原则</h1><ul>
+<li>尽量保持单一写</li>
+<li>避免使用锁，无锁化（volatile + CAS）</li>
+<li>避免伪共享</li>
+</ul>
+<h2 id="为什么要无锁"><a href="#为什么要无锁" class="headerlink" title="为什么要无锁"></a>为什么要无锁</h2><p>在多线程下，往往涉及对资源的共享，比如内存、文件、IO等，为了共享资源访问时的安全，我们需要对共享资源加锁，加锁保证了原子性和内存可见性；（原子性保证资源的争用更新；可见性保证某一线程对内存的修改对其他线程是可见的。）但是锁带来一个不可忽视的问题——性能问题，线程因为竞争不到锁而被挂起，获取到锁线程恢复。这个过程会带来很大的开销，同时cpu上下文的切换，可能会造成缓存和指令的丢失。在多线程情况下，加锁的开销往往比无锁多了好几个数量级。</p>
+<p>在某些情况，我们通常会考虑用CAS替代锁从而避免锁带来的巨大开销，相对锁而言，CAS是高效的，因为它没有线程上下文切换。但是如果竟态条件一直不能满足，线程就会不停的自旋，这同样会带来性能开销。</p>
+<h2 id="避免伪共享"><a href="#避免伪共享" class="headerlink" title="避免伪共享"></a>避免伪共享</h2><p>在之前的ArrayBlockingQueue分析中，我们会发现它的三个成员takeIndex,putTndex,count很容易放入一个缓存行，这就会带来伪共享问题，关于伪共享的问题网上的分析已经非常之多，这里不多描述。<br><img src="http://osjt45oaj.bkt.clouddn.com/falseSharing.png" alt=""><br>如上图所示，当生产者线程put一个元素到ArrayBlockingQueue时，putIndex会修改，从而导致消费者线程的缓存中的缓存行无效，需要从主存中重新读取，这就伪共享。通常的解决办法是填充缓存行，让共享的变量位于不通的cache line，从而避免伪共享。</p>
+<h1 id="原理简介"><a href="#原理简介" class="headerlink" title="原理简介"></a>原理简介</h1><p><img src="http://osjt45oaj.bkt.clouddn.com/disruptor.png" alt=""></p>
+<p>先来看下disruptor中的一些核心组件：</p>
+<ul>
+<li><p>RingBuffer</p>
+<p>环形缓冲区，它是disruptor的核心容器。本质上还是一个数组，通过取余操作，形成一个环形数组；初始化RingBuffer时，所有数组元素均被初始化，后续只会更新数组元素；RingBuffer本身并没有锁，生产者和消费者申请操作位置后直接在数据上操作一个生产者时候，申请位置也不用锁<br>多个生产者时候，通过CAS控制；</p>
+</li>
+<li><p>Sequence  </p>
+<p>通过顺序递增的序号来编号管理通过其进行交换的数据（事件），对数据(事件)的处理过程总是沿着序号逐个递增处理。一个 Sequence 用于跟踪标识某个特定的事件处理者( RingBuffer/Consumer )的处理进度。虽然一个 AtomicLong 也可以用于标识进度，但定义 Sequence 来负责该问题还有另一个目的，那就是防止不同的 Sequence 之间的CPU缓存伪共享(Flase Sharing)问题。</p>
+</li>
+<li><p>Sequencer </p>
+<p>Sequencer 是 Disruptor 的真正核心。此接口有两个实现类 SingleProducerSequencer、MultiProducerSequencer ，它们定义在生产者和消费者之间快速、正确地传递数据的并发算法。</p>
+</li>
+<li><p>Sequence Barrier</p>
+<p>用于保持对RingBuffer的已发布Sequence 和Consumer依赖的其它Consumer的 Sequence 的引用。 Sequence Barrier 还定义了决定 Consumer 是否还有可处理的事件的逻辑。</p>
+</li>
+<li><p>Wait Strategy   定义 Consumer 如何进行等待下一个事件的策略。</p>
+</li>
+<li>Event  生产者和消费者之间进行交换的数据被称为事件(Event)。</li>
+<li>EventProcessor 持有特定消费者(Consumer)的 Sequence，并提供用于调用事件处理实现的事件循环(Event Loop)。</li>
+<li><p>EventHandler </p>
+<p>Disruptor 定义的事件处理接口，由用户实现，用于处理事件，是 Consumer 的真正实现。</p>
+</li>
+</ul>
+<p>了解disruptor中核心组件的含义之后，我们可能仍然对disruptor没有一个整体的认识。下面我们分析一下disruptor的生产流程。</p>
+<h2 id="生产流程"><a href="#生产流程" class="headerlink" title="生产流程"></a>生产流程</h2><p> 单一生产者的情况下，生产端不需要并发控制。首先申请写入m个元素，若是有m个元素可以写入，则返回最大的序列号（这儿主要判断是否会覆盖未读的元素）若是返回的正确，则生产者开始写入元素。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleWriter.png" alt=""></p>
+<h3 id="多个生产者"><a href="#多个生产者" class="headerlink" title="多个生产者"></a>多个生产者</h3><p> 多个生产者情况会遇到，会有多个生产者同时写入同一个位置的问题；disruptor的做法是每个线程获取不同的一段数组空间进行操作。这个通过CAS很容易达到（这跟JVM中创建对象内存分配策略tlab类似）。除此之外，这里仍然有个问题：如何防止读取的时候，读到还未写的元素。Disruptor在多个生产者的情况下，引入了一个与Ring Buffer大小相同的buffer：available Buffer。当某个位置写入成功的时候，便把availble Buffer相应的位置置位，标记为写入成功。读取的时候，会遍历available Buffer，来判断元素是否已经就绪。<br>读的过程：</p>
+<ul>
+<li>申请读取到序号n</li>
+<li>若writer cursor &gt;= n，这时仍然无法确定连续可读的最大下标。从reader cursor开始读取available Buffer，一直查到第一个不可用的元素，然后返回最大连续可读元素的位置；</li>
+<li>消费者读取元素.</li>
+</ul>
+<p><img src="http://osjt45oaj.bkt.clouddn.com/multWriterReader.png" alt=""><br>如图所示，读线程读到下标为2的元素，三个线程Writer1/Writer2/Writer3正在向RingBuffer相应位置写数据，写线程被分配到的最大元素下标是11。读线程申请读取到下标从3到11的元素，判断writer cursor&gt;=11。然后开始读取availableBuffer，从3开始，往后读取，发现下标为7的元素没有生产成功，于是WaitFor(11)返回6。然后，消费者读取下标从3到6共计4个元素。</p>
+<p>写的过程：</p>
+<ul>
+<li>申请写入m个元素；</li>
+<li>若是有m个元素可以写入，则返回最大的序列号。每个生产者被分配到一段独享的空间。</li>
+<li>生产者写入元素，写入元素的同时设置available Buffer里面相应的位置，以标记自己哪些位置是已经写入成功的。</li>
+</ul>
+<p><img src="http://osjt45oaj.bkt.clouddn.com/multWriterWrite.png" alt=""></p>
+<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>RingBuffer</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div><div class="line">60</div><div class="line">61</div><div class="line">62</div><div class="line">63</div><div class="line">64</div><div class="line">65</div><div class="line">66</div><div class="line">67</div><div class="line">68</div><div class="line">69</div><div class="line">70</div><div class="line">71</div><div class="line">72</div><div class="line">73</div><div class="line">74</div><div class="line">75</div><div class="line">76</div></pre></td><td class="code"><pre><div class="line">abstract class RingBufferPad</div><div class="line">&#123;</div><div class="line">    protected long p1, p2, p3, p4, p5, p6, p7;</div><div class="line">&#125;</div><div class="line"> </div><div class="line">abstract class RingBufferFields&lt;E&gt; extends RingBufferPad</div><div class="line">&#123;</div><div class="line">    //填充数组头尾数量</div><div class="line">    private static final int BUFFER_PAD;</div><div class="line">    //数组的第一个元素位置，去掉填充值</div><div class="line">    private static final long REF_ARRAY_BASE;</div><div class="line">    //数组元素每个的引用大小的N次方</div><div class="line">    private static final int REF_ELEMENT_SHIFT;</div><div class="line">    private static final Unsafe UNSAFE = Util.getUnsafe();</div><div class="line">    static</div><div class="line">    &#123;</div><div class="line">        //每个元素引用占用的大小，32位是4，64位是8</div><div class="line">        final int scale = UNSAFE.arrayIndexScale(Object[].class);</div><div class="line">        if (4 == scale)</div><div class="line">        &#123;</div><div class="line">            //下面会多次左移，表示乘上每个元素大小</div><div class="line">            REF_ELEMENT_SHIFT = 2;</div><div class="line">        &#125;</div><div class="line">        else if (8 == scale)</div><div class="line">        &#123;</div><div class="line">            REF_ELEMENT_SHIFT = 3;</div><div class="line">        &#125;</div><div class="line">        else</div><div class="line">        &#123;</div><div class="line">            throw new IllegalStateException(&quot;Unknown pointer size&quot;);</div><div class="line">        &#125;</div><div class="line">        BUFFER_PAD = 128 / scale;</div><div class="line">        //包含PAD大小的数据</div><div class="line">        REF_ARRAY_BASE = UNSAFE.arrayBaseOffset(Object[].class) + (BUFFER_PAD &lt;&lt; REF_ELEMENT_SHIFT);</div><div class="line">    &#125;</div><div class="line">    //取余公式：m % 2^n = m &amp; ( 2^n - 1 )</div><div class="line">    private final long indexMask;</div><div class="line">    private final Object[] entries;</div><div class="line">    //RingBuffer的大小</div><div class="line">    protected final int bufferSize;</div><div class="line">    protected final Sequencer sequencer;</div><div class="line"> </div><div class="line">    RingBufferFields(EventFactory&lt;E&gt; eventFactory, Sequencer sequencer)</div><div class="line">    &#123;</div><div class="line">        this.sequencer = sequencer;</div><div class="line">        this.bufferSize = sequencer.getBufferSize();</div><div class="line">        if (bufferSize &lt; 1)</div><div class="line">        &#123;</div><div class="line">            throw new IllegalArgumentException(&quot;bufferSize must not be less than 1&quot;);</div><div class="line">        &#125;</div><div class="line">        if (Integer.bitCount(bufferSize) != 1)</div><div class="line">        &#123;</div><div class="line">            throw new IllegalArgumentException(&quot;bufferSize must be a power of 2&quot;);</div><div class="line">        &#125;</div><div class="line"> </div><div class="line">        this.indexMask = bufferSize - 1;</div><div class="line">        this.entries = new Object[sequencer.getBufferSize() + 2 * BUFFER_PAD];</div><div class="line">        fill(eventFactory);</div><div class="line">    &#125;</div><div class="line"> </div><div class="line">    //初始化时候会将每个位置都填充，之后，只会修改值或者修改引用</div><div class="line">    private void fill(EventFactory&lt;E&gt; eventFactory)</div><div class="line">    &#123;</div><div class="line">        for (int i = 0; i &lt; bufferSize; i++)</div><div class="line">        &#123;</div><div class="line">            entries[BUFFER_PAD + i] = eventFactory.newInstance();</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"> </div><div class="line">    @SuppressWarnings(&quot;unchecked&quot;)</div><div class="line">    protected final E elementAt(long sequence)</div><div class="line">    &#123;</div><div class="line">        //每个元素的位置 = 数组基址+数组头+引用偏移</div><div class="line">        return (E) UNSAFE.getObject(entries, REF_ARRAY_BASE + ((sequence &amp; indexMask) &lt;&lt; REF_ELEMENT_SHIFT));</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>Sequence其实就是一个64位的volatile值，内部通过缓存行填充，避免多线程访问sequence的伪共享问题。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div></pre></td><td class="code"><pre><div class="line">class LhsPadding</div><div class="line">&#123;</div><div class="line">    //前填充</div><div class="line">    protected long p1, p2, p3, p4, p5, p6, p7;</div><div class="line">&#125;</div><div class="line"> </div><div class="line">class Value extends LhsPadding</div><div class="line">&#123;</div><div class="line">    //真正用的值，是volatile</div><div class="line">    protected volatile long value;</div><div class="line">&#125;</div><div class="line"> </div><div class="line">class RhsPadding extends Value</div><div class="line">&#123;</div><div class="line">    //后填充</div><div class="line">    protected long p9, p10, p11, p12, p13, p14, p15;</div><div class="line">&#125;</div><div class="line"> </div><div class="line">public class Sequence extends RhsPadding</div><div class="line">&#123;</div><div class="line">    static final long INITIAL_VALUE = -1L;</div><div class="line">    private static final Unsafe UNSAFE;</div><div class="line">    private static final long VALUE_OFFSET;</div><div class="line"> </div><div class="line">    static</div><div class="line">    &#123;</div><div class="line">        UNSAFE = Util.getUnsafe();</div><div class="line">        try</div><div class="line">        &#123;</div><div class="line">            VALUE_OFFSET = UNSAFE.objectFieldOffset(Value.class.getDeclaredField(&quot;value&quot;));</div><div class="line">        &#125;</div><div class="line">        catch (final Exception e)</div><div class="line">        &#123;</div><div class="line">            throw new RuntimeException(e);</div><div class="line">        &#125;</div></pre></td></tr></table></figure>
+<p>SingleProducerSequencer单生产者的核心类，写不存在并发.</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div></pre></td><td class="code"><pre><div class="line">public long next(int n)</div><div class="line">&#123;</div><div class="line">    if (n &lt; 1)</div><div class="line">    &#123;</div><div class="line">        throw new IllegalArgumentException(&quot;n must be &gt; 0&quot;);</div><div class="line">    &#125;</div><div class="line">    long nextValue = this.nextValue;</div><div class="line">    long nextSequence = nextValue + n;</div><div class="line">    long wrapPoint = nextSequence - bufferSize;</div><div class="line">    long cachedGatingSequence = this.cachedValue;</div><div class="line">     </div><div class="line">    if (wrapPoint &gt; cachedGatingSequence || cachedGatingSequence &gt; nextValue)</div><div class="line">    &#123;</div><div class="line">        cursor.setVolatile(nextValue);</div><div class="line">        long minSequence;</div><div class="line">        //只要wrapPoint大于最小的gatingSequences，那么不断唤醒消费者去消费，并利用LockSupport让出CPU，直到wrapPoint不大于最小的gatingSequences</div><div class="line">        while (wrapPoint &gt; (minSequence = Util.getMinimumSequence(gatingSequences, nextValue)))</div><div class="line">        &#123;</div><div class="line">            waitStrategy.signalAllWhenBlocking();</div><div class="line">            LockSupport.parkNanos(1L);</div><div class="line">        &#125;</div><div class="line"> </div><div class="line">        this.cachedValue = minSequence;</div><div class="line">    &#125;</div><div class="line">    this.nextValue = nextSequence;</div><div class="line">    return nextSequence;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>多线程写核心类</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div></pre></td><td class="code"><pre><div class="line">public long next(int n)</div><div class="line">&#123;</div><div class="line">    if (n &lt; 1)</div><div class="line">    &#123;</div><div class="line">        throw new IllegalArgumentException(&quot;n must be &gt; 0&quot;);</div><div class="line">    &#125;</div><div class="line">    long current;</div><div class="line">    long next;</div><div class="line"> </div><div class="line">    do</div><div class="line">    &#123;</div><div class="line">        current = cursor.get();</div><div class="line">        next = current + n;</div><div class="line">        long wrapPoint = next - bufferSize;</div><div class="line">        long cachedGatingSequence = gatingSequenceCache.get();</div><div class="line">        if (wrapPoint &gt; cachedGatingSequence || cachedGatingSequence &gt; current)</div><div class="line">        &#123;</div><div class="line">            long gatingSequence = Util.getMinimumSequence(gatingSequences, current);</div><div class="line"> </div><div class="line">            if (wrapPoint &gt; gatingSequence)</div><div class="line">            &#123;</div><div class="line">                waitStrategy.signalAllWhenBlocking();</div><div class="line">                LockSupport.parkNanos(1); // TODO, should we spin based on the wait strategy?</div><div class="line">                continue;</div><div class="line">            &#125;</div><div class="line"> </div><div class="line">            gatingSequenceCache.set(gatingSequence);</div><div class="line">        &#125;</div><div class="line">        //区别是这里，进行CAS的操作</div><div class="line">        else if (cursor.compareAndSet(current, next))</div><div class="line">        &#123;</div><div class="line">            break;</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">    while (true);</div><div class="line"> </div><div class="line">    return next;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+<p>waitStrategy。 Disruptor中有很多需要等待的地方，比如生产者需要等待可用的一个RingBuffer上的槽位，比如消费者1与消费者2之间有依赖关系，都依赖于WaitStrategy。disruptor实现了如下几种等待策略</p>
+<ul>
+<li><p>BlockingWaitStrategy：利用锁、等待机制的策略</p>
+</li>
+<li><p>SleepingWaitStrategy：初始重试200，根据重试的次数，选择盲等或者sleep</p>
+</li>
+<li>BusySpinWaitStrategy：不停的自旋，耗费CPU性能</li>
+<li>YieldingWaitStrategy：直接调用Thread.yield，延时不可控</li>
+</ul>
+<p>SequenceBarrier是消费者与Ringbuffer之间建立消费关系的媒介。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line">public long waitFor(final long sequence)</div><div class="line">    throws AlertException, InterruptedException, TimeoutException</div><div class="line">&#123;</div><div class="line">    checkAlert();</div><div class="line"> </div><div class="line">    long availableSequence = waitStrategy.waitFor(sequence, cursorSequence, dependentSequence, this);</div><div class="line"> </div><div class="line">    if (availableSequence &lt; sequence)</div><div class="line">    &#123;</div><div class="line">        return availableSequence;</div><div class="line">    &#125;</div><div class="line"> </div><div class="line">    return sequencer.getHighestPublishedSequence(sequence, availableSequence);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2017/06/18/cocurrent-disruptor/" data-id="cjewkhgz50000cz2mufjodwsj" class="article-share-link">Share</a>
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
 
     </footer>
   </div>
@@ -182,7 +287,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/18/concurrent-delayQueue/" data-id="cjew9mna50004yj2m5vjbajd9" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/18/concurrent-delayQueue/" data-id="cjewkhgzk0005cz2mwqc1enop" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -246,7 +351,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/17/concurrent-blockingQueue/" data-id="cjew9mn9s0000yj2ma3utixmf" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/17/concurrent-blockingQueue/" data-id="cjewkhgzo000acz2mivhkwgpj" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -301,7 +406,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/13/concurrent2-threadLocal/" data-id="cjew9mnab000ayj2mijcaljtx" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/13/concurrent2-threadLocal/" data-id="cjewkhgzm0008cz2mvqzzwrbm" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -377,7 +482,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/02/concurrent-1-cas/" data-id="cjew9mna40003yj2mih8qq92d" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/02/concurrent-1-cas/" data-id="cjewkhgzh0004cz2m8lz274q6" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -420,7 +525,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cjew9mn9w0001yj2m3dotjknb" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cjewkhgza0001cz2m9g6jdis5" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -460,7 +565,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjew9mnax0010yj2mdsy154gv" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjewkhh0j0015cz2mfdjq83bp" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -529,7 +634,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/06/reactor-I-O/" data-id="cjew9mnav000vyj2m23uulbl7" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/06/reactor-I-O/" data-id="cjewkhh0e000ycz2mban889av" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java-IO/">java IO</a></li></ul>
@@ -572,7 +677,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cjew9mnaf000eyj2m9gctlla3" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cjewkhgzu000icz2moryafj77" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>
@@ -584,58 +689,10 @@
 
 
   
-    <article id="post-customize-appender" class="article article-type-post" itemscope itemprop="blogPost">
-  <div class="article-meta">
-    <a href="/2017/03/16/customize-appender/" class="article-date">
-  <time datetime="2017-03-16T01:14:55.000Z" itemprop="datePublished">2017-03-16</time>
-</a>
-    
-  </div>
-  <div class="article-inner">
-    
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2017/03/16/customize-appender/">Logger之自定义Appender</a>
-    </h1>
-  
-
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <p>如果现在要将应用中所有的Error级别日志收集到数据库中，你能想到什么办法？比较自然的想法是：1. 在所有输出Error日志的地方增加插入数据库操作。2.开辟程序扫描日志文件，遇到Error日志记录入库。这两种方案前者对代码侵入很大；后者工作量较大，而且无法做到实时同步。那么有没有更简便优雅的方式呢？答案就是本文的标题。现在市面上流行的日志框架主要为log4j和logback,二者实现过程基本相同，我们以Logback为例，看如何实现自定义Appender，logback大致类似。<br>Log4j和Logback主要有三个组件：</p>
-<ul>
-<li>Logger:      负责客户端代码调用，执行error,debug,info,warn等方法。</li>
-<li>Appender:  负责日志的输出，Log4j和Logback都实现了多种不同目标的输出方式，常见的有控制台输出，日志文件输出，socket输出等。</li>
-<li>Layout：     负责日志的格式化。</li>
-</ul>
-<p>下面是应用中logback具体的配置：</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/123.png" alt=""><br>log4j和logback中总存在rootLogger,其他的logger都继承这个rootLogger。logger中的层次用”.”来分隔，比如<br>Logger logger = Logger.getLogger(“A.B”) //这里会新建两个logger实例”A”,”A.B”。”A.B”和”A”是一种继承关系，子logger会父logger及祖辈logger的appender添加到自己logger列表，当然我们可以通过配置打破这种继承关系，这里不做赘述。</p>
-<p>   稍微了解了logback的这种结构，那么自定义Appender的问题就迎刃而解了，我们直接上代码。</p>
-<p> <img src="http://osjt45oaj.bkt.clouddn.com/124.png" alt=""><br> 我们只要在应用启动的时候注入这样一个类，并调用addLogbackAppender()方法，就可以为所有的logger加上一个自定义appender,这样在应用每次输出Error级别日志，就忘数据库中记录。当然并不一定是Error日志，具体的逻辑根据需求定义在getCustomizedLogbackAppender中就万事大吉。</p>
-
-      
-    </div>
-    <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cjew9mna80005yj2magn0tqv7" class="article-share-link">Share</a>
-      
-      
-  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
-
-    </footer>
-  </div>
-  
-</article>
-
-
-  
 
 
   <nav id="page-nav">
-    <a class="extend prev" rel="prev" href="/">&laquo; __('prev')</a><a class="page-number" href="/">1</a><span class="page-number current">2</span>
+    <a class="extend prev" rel="prev" href="/">&laquo; __('prev')</a><a class="page-number" href="/">1</a><span class="page-number current">2</span><a class="page-number" href="/page/3/">3</a><a class="extend next" rel="next" href="/page/3/">__('next') &raquo;</a>
   </nav>
 </section>
         
@@ -667,7 +724,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">归档</h3>
     <div class="widget">
-      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/03/">三月 2018</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/03/">三月 2018</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
     </div>
   </div>
 

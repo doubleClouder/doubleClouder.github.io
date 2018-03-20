@@ -68,6 +68,90 @@
       <div class="outer">
         <section id="main">
   
+    <article id="post-kafka-consumer1" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2018/03/12/kafka-consumer1/" class="article-date">
+  <time datetime="2018-03-12T02:49:08.000Z" itemprop="datePublished">2018-03-12</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2018/03/12/kafka-consumer1/">kafka Consumer中心协调器Coordinator</a>
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>对kafka Producer有了一定认识之后，我们继续聊一聊kafka客户端的另一部分Consumer端有关内容，当然仍然基于新的java版本的KafkaConsumer进行分析，本篇内容分析一下kafka如何对同一个消费组里多个consumer进行管理的，消费者之前是如何协调的。</p>
+<h1 id="rebalance机制"><a href="#rebalance机制" class="headerlink" title="rebalance机制"></a>rebalance机制</h1><p>我们知道kafka保证同一消费组中的每个consumer能够消费一个或者多个特定的partition数据，一个partition的数据只能被一个consumer消费；因为每个partition里的消息是有序的，这样可以保证partition中的数据被同一个消费者有序消费；同时consumer只需要和自己消费的partition的broker通信就可以，减少开销。</p>
+<p>在kafka中消费者的分区分配策略默认有两种：range和RoundRobin。<br>假设一个consumer group中有三个消费者C0 C1 C2,要消费的topic包含10个partition p0-p19; Range的分配策略是partition个数除以消费者个数，剩下的从头分配 10/3 = 3 则C0分配 0，1，2，3；C1分配4，5，6；C2分配7，8，9；RoundRobin的分配策略则是按Partion的hashCode进行排序，同时对消费者进行排序，然后按hashCode取模进行分配。</p>
+<p>consumer rebalance的触发条件：</p>
+<ul>
+<li>Consumer Group的消费者增加或者减少</li>
+<li>Broker的增加或者减少</li>
+</ul>
+<p>Rebalance的步骤如下：</p>
+<ul>
+<li>根据分配策略重新确定每个消费者分配的partition,</li>
+<li>解除Ci对原来分配的Partition的消费权（i从0开始）</li>
+<li>Ci开始消费新的partition</li>
+</ul>
+<h2 id="基于zk的rebalance"><a href="#基于zk的rebalance" class="headerlink" title="基于zk的rebalance"></a>基于zk的rebalance</h2><p>在kafka0.9版本之前,consumer的rebalance是通过在zookeeper上注册watch完成的。每个consumer创建的时候，会在在Zookeeper上的路径为/consumers/[consumer group]/ids/[consumer id]下将自己的id注册到消费组下；然后在/consumers/[consumer group]/ids 和/brokers/ids下注册watch；最后强制自己在消费组启动rebalance。</p>
+<p>这种做法很容易带来zk的羊群效应，任何Broker或者Consumer的增减都会触发所有的Consumer的Rebalance，造成集群内大量的调整；同时由于每个consumer单独通过zookeeper判断Broker和consumer宕机，由于zk的脑裂特性，同一时刻不同consumer通过zk看到的表现可能是不一样，这就可能会造成很多不正确的rebalance尝试；除此之外，由于consumer彼此独立，每个consumer都不知道其他consumer是否rebalance成功，可能会导致consumer group消费不正确。</p>
+<h2 id="Coordinator"><a href="#Coordinator" class="headerlink" title="Coordinator"></a>Coordinator</h2><p>基于zk的rebalance存在不可避免的羊群效应和脑裂问题，如何不用zk来协调，而是将失败探测和Rebalance的逻辑放到一个高可用的中心，那么上述问题就能得以解决；因此kafka0.9.*的版本重新设计了consumer端，诞生了这样一个高可用中心Coordinator，大大减少了zookeeper负载。</p>
+<p>对于每一个Consumer Group，Kafka集群为其从broker集群中选择一个broker作为其coordinator。coordinator主要做两件事：</p>
+<ul>
+<li>维持group的成员组成。这包括加入新的成员，检测成员的存活性，清除不再存活的成员。</li>
+<li>协调group成员的行为。</li>
+</ul>
+<p>Coordinator有如下几种类型：</p>
+<ul>
+<li>GroupCoordinator：broker端的，每个kafka server都有一个实例，管理部分的consumer group和它们的offset</li>
+<li>WorkerCoordinator：broker端的，管理GroupCoordinator程序，主要管理workers的分配。</li>
+<li>ConsumerCoordinator：consumer端的，和GroupCoordinator通信的媒介。</li>
+</ul>
+<p>ConsumerCoordinator是KafkaConsumer的一个成员，只负责与GroupCoordinator通信，所以真正的协调者还是GroupCoordinator。</p>
+<h3 id="协调过程分析"><a href="#协调过程分析" class="headerlink" title="协调过程分析"></a>协调过程分析</h3><ol>
+<li>消费者在启动或者协调节点故障转移时，消费者发送ConsumerMetadataRequest给bootstrap brokers列表中的任意一个brokers。在ConsumerMetadataResponse中，它接收消费者对应的消费组所属的协调节点的位置信息。</li>
+<li>Consumer连接Coordinator节点，并发送HeartbeatRequest。如果返回的HeartbeatResponse中返回IllegalGeneration错误码，说明协调节点已经在初始化平衡。消费者就会停止抓取数据，提交offsets，发送JoinGroupRequest给协调节点。在JoinGroupResponse，它接收消费者应该拥有的topic-partitions列表以及当前Consumer Group的新的generation编号。这个时候Consumer Group管理已经完成，Consumer就可以开始fetch数据，并为它拥有的partitions提交offsets。</li>
+<li>如果HeartbeatResponse没有错误返回，Consumer会从它上次拥有的partitions列表继续抓取数据。</li>
+</ol>
+<p>在coordinator中，实际在还在消费组中定义了一个角色leader。所有的成员都向coordinator注册，由coordinator选出leader,由leader来为组中成员分配资源；单个Kafka集群可能会存在着比broker的数量大得多的消费者和消费者组，而消费者的情况可能是不稳定的，可能会频繁变化，每次变化都需要一次协调，如果由broker来负责实际的协调工作，会给broker增加很多负担。所以，从group memeber里选出来一个做为leader，由leader来执行性能开销大的协调任务, 这样把负载分配到client端，可以减轻broker的压力，支持更多数量的消费组。leader 与follower是不直接通信的。consumer group的成员把它们所订阅的topic发送给coordinator。然后coordinator来选择一个leader, 然后由coordinator把这个group的所有成员的订阅情况发给leader，由leader来执行分区的分配，然后把结果发给coordinator。由coordinator来转发分配的结果到每个group的成员。</p>
+<p>这里我们看下消费端负责与Coodinator通信的CosumerCoordinator</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div><div class="line">60</div><div class="line">61</div><div class="line">62</div><div class="line">63</div><div class="line">64</div><div class="line">65</div><div class="line">66</div><div class="line">67</div><div class="line">68</div><div class="line">69</div><div class="line">70</div><div class="line">71</div><div class="line">72</div><div class="line">73</div><div class="line">74</div><div class="line">75</div></pre></td><td class="code"><pre><div class="line">protected Map&lt;String, ByteBuffer&gt; performAssignment(String leaderId,</div><div class="line">                                                        String assignmentStrategy,</div><div class="line">                                                        Map&lt;String, ByteBuffer&gt; allSubscriptions) &#123;</div><div class="line">        PartitionAssignor assignor = lookupAssignor(assignmentStrategy);</div><div class="line">        if (assignor == null)</div><div class="line">            throw new IllegalStateException(&quot;Coordinator selected invalid assignment protocol: &quot; + assignmentStrategy);</div><div class="line"></div><div class="line">        Set&lt;String&gt; allSubscribedTopics = new HashSet&lt;&gt;();</div><div class="line">        Map&lt;String, Subscription&gt; subscriptions = new HashMap&lt;&gt;();</div><div class="line">        for (Map.Entry&lt;String, ByteBuffer&gt; subscriptionEntry : allSubscriptions.entrySet()) &#123;</div><div class="line">            Subscription subscription = ConsumerProtocol.deserializeSubscription(subscriptionEntry.getValue());</div><div class="line">            subscriptions.put(subscriptionEntry.getKey(), subscription);</div><div class="line">            allSubscribedTopics.addAll(subscription.topics());</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        // the leader will begin watching for changes to any of the topics the group is interested in,</div><div class="line">        // which ensures that all metadata changes will eventually be seen</div><div class="line">        this.subscriptions.groupSubscribe(allSubscribedTopics);</div><div class="line">        metadata.setTopics(this.subscriptions.groupSubscription());</div><div class="line"></div><div class="line">        // update metadata (if needed) and keep track of the metadata used for assignment so that</div><div class="line">        // we can check after rebalance completion whether anything has changed</div><div class="line">        client.ensureFreshMetadata();</div><div class="line"></div><div class="line">        isLeader = true;</div><div class="line"></div><div class="line">        log.debug(&quot;Performing assignment for group &#123;&#125; using strategy &#123;&#125; with subscriptions &#123;&#125;&quot;,</div><div class="line">                groupId, assignor.name(), subscriptions);</div><div class="line"></div><div class="line">        Map&lt;String, Assignment&gt; assignment = assignor.assign(metadata.fetch(), subscriptions);</div><div class="line"></div><div class="line">        // user-customized assignor may have created some topics that are not in the subscription list</div><div class="line">        // and assign their partitions to the members; in this case we would like to update the leader&apos;s</div><div class="line">        // own metadata with the newly added topics so that it will not trigger a subsequent rebalance</div><div class="line">        // when these topics gets updated from metadata refresh.</div><div class="line">        //</div><div class="line">        // TODO: this is a hack and not something we want to support long-term unless we push regex into the protocol</div><div class="line">        //       we may need to modify the PartitionAssingor API to better support this case.</div><div class="line">        Set&lt;String&gt; assignedTopics = new HashSet&lt;&gt;();</div><div class="line">        for (Assignment assigned : assignment.values()) &#123;</div><div class="line">            for (TopicPartition tp : assigned.partitions())</div><div class="line">                assignedTopics.add(tp.topic());</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        if (!assignedTopics.containsAll(allSubscribedTopics)) &#123;</div><div class="line">            Set&lt;String&gt; notAssignedTopics = new HashSet&lt;&gt;(allSubscribedTopics);</div><div class="line">            notAssignedTopics.removeAll(assignedTopics);</div><div class="line">            log.warn(&quot;The following subscribed topics are not assigned to any members in the group &#123;&#125; : &#123;&#125; &quot;, groupId,</div><div class="line">                    notAssignedTopics);</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        if (!allSubscribedTopics.containsAll(assignedTopics)) &#123;</div><div class="line">            Set&lt;String&gt; newlyAddedTopics = new HashSet&lt;&gt;(assignedTopics);</div><div class="line">            newlyAddedTopics.removeAll(allSubscribedTopics);</div><div class="line">            log.info(&quot;The following not-subscribed topics are assigned to group &#123;&#125;, and their metadata will be &quot; +</div><div class="line">                    &quot;fetched from the brokers : &#123;&#125;&quot;, groupId, newlyAddedTopics);</div><div class="line"></div><div class="line">            allSubscribedTopics.addAll(assignedTopics);</div><div class="line">            this.subscriptions.groupSubscribe(allSubscribedTopics);</div><div class="line">            metadata.setTopics(this.subscriptions.groupSubscription());</div><div class="line">            client.ensureFreshMetadata();</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        assignmentSnapshot = metadataSnapshot;</div><div class="line"></div><div class="line">        log.debug(&quot;Finished assignment for group &#123;&#125;: &#123;&#125;&quot;, groupId, assignment);</div><div class="line"></div><div class="line">        Map&lt;String, ByteBuffer&gt; groupAssignment = new HashMap&lt;&gt;();</div><div class="line">        for (Map.Entry&lt;String, Assignment&gt; assignmentEntry : assignment.entrySet()) &#123;</div><div class="line">            ByteBuffer buffer = ConsumerProtocol.serializeAssignment(assignmentEntry.getValue());</div><div class="line">            groupAssignment.put(assignmentEntry.getKey(), buffer);</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        return groupAssignment;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
+<p>ConsumerCoordinator中实现了这样一个方法performAssignment，它的入参的是leaderId以及包含所有组成员及partition的meta信息;assignmentStrategy指定了分配策略，这个实际上上是执行的一开始我们介绍的分区分配策略，默认Range或者RoundRobin；PartitionAssignor实现代表具体的策略。leader计算好各member的分区之后，将结果返回给coordinator</p>
+<h4 id="Coordinator工作过程"><a href="#Coordinator工作过程" class="headerlink" title="Coordinator工作过程"></a>Coordinator工作过程</h4><ol>
+<li>在稳定状态下，协调节点通过故障检测协议跟踪每个消费组中每个消费者的健康状况。</li>
+<li>在选举和启动时，协调节点读取它管理的消费组列表，以及从ZK中读取每个消费组的成员信息。如果之前没有成员信息，它不会做任何动作。只有在同一个消费组的第一个消费者注册进来时，协调节点才开始工作(即开始加载消费组的消费者成员信息)。</li>
+<li>当协调节点完全加载完它所负责的消费组列表的所有组成员之前，它会在以下几种请求的响应中返回CoordinatorStartupNotComplete错误码：HeartbeatRequest，OffsetCommitRequest，JoinGroupRequest。这样消费者就会过段时间重试(直到完全加载，没有错误码返回为止)，知道消费者与coordinator建立连接<br>4.在选举或启动时，协调节点会对消费组中的所有消费者进行故障检测。根据故障检测协议被协调节点标记为Dead的消费者会从消费组中移除，这个时候协调节点会为Dead的消费者所属的消费组触发一个平衡操作(消费者Dead之后，这个消费者拥有的partition需要平衡给其他消费者)。<br>5.当HeartbeatResponse返回IllegalGeneration错误码，就会触发平衡操作。一旦所有存活的消费者通过JoinGroupRequests重新注册到协调节点，协调节点会将最新的partition所有权信息在JoinGroupResponse的每个消费者之间通信(同步)，然后就完成了平衡操作。<br>6.协调节点会跟踪任何一个消费者已经注册的topics的topic-partition的变更。如果它检测到某个topic新增的partition，就会触发平衡操作。当创建一个新的topics也会触发平衡操作，因为消费者可以在topic被创建之前就注册它感兴趣的topics。</li>
+</ol>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>kafka是使用一个broker作为coordinator来动态协调消费组各消费者，替代之后消费者自己在zookeeper注册watch的方式，提高了高用性，大大降低了zk的压力。</p>
+<p>参考：</p>
+<p><a href="http://zqhxuyuan.github.io/2016/02/22/2016-02-22-Kafka-Consumer-new/" target="_blank" rel="external">Kafka源码分析 KafkaConsumer（翻译和注释）</a></p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2018/03/12/kafka-consumer1/" data-id="cjez4yjhr000dnb2mlz8tdwpn" class="article-share-link">Share</a>
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kafka/">kafka</a></li></ul>
+
+    </footer>
+  </div>
+  
+</article>
+
+
+  
     <article id="post-kafka-4" class="article article-type-post" itemscope itemprop="blogPost">
   <div class="article-meta">
     <a href="/2018/03/11/kafka-4/" class="article-date">
@@ -147,7 +231,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2018/03/11/kafka-4/" data-id="cjewkx2r1000jg32m26te3xdt" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2018/03/11/kafka-4/" data-id="cjez4yjhz000knb2m6g1vm1g9" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kafka/">kafka</a></li></ul>
@@ -222,7 +306,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2018/03/08/kafka-producer-nio/" data-id="cjewkx2r7000og32m6r6x6vt7" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2018/03/08/kafka-producer-nio/" data-id="cjez4yji7000rnb2m35frh7je" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kafka/">kafka</a></li></ul>
@@ -291,7 +375,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/11/20/kafka-zero-copy/" data-id="cjewkx2r9000qg32mu3ubsxhu" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/11/20/kafka-zero-copy/" data-id="cjez4yji3000pnb2m73biaqpr" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kafka/">kafka</a></li></ul>
@@ -362,9 +446,11 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/11/19/kafka-one/" data-id="cjewkx2r3000mg32mae9zb3ye" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/11/19/kafka-one/" data-id="cjez4yji1000mnb2m4r1eos2k" class="article-share-link">Share</a>
       
       
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kafka/">kafka</a></li></ul>
+
     </footer>
   </div>
   
@@ -436,7 +522,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/09/24/dynamic-proxy/" data-id="cjewkx2qx000eg32m9xlyy4z2" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/09/24/dynamic-proxy/" data-id="cjez4yjht000gnb2m9qpbwvp3" class="article-share-link">Share</a>
       
       
     </footer>
@@ -538,7 +624,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/08/27/mybatis-cache/" data-id="cjewkx2rc000sg32mlb8qtuar" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/08/27/mybatis-cache/" data-id="cjez4yjia000tnb2mkzdde201" class="article-share-link">Share</a>
       
       
     </footer>
@@ -586,7 +672,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/23/redis-list/" data-id="cjewkx2rj0011g32meppu6q76" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/23/redis-list/" data-id="cjez4yjif0010nb2mcp2mdlqb" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/redis/">redis</a></li></ul>
@@ -647,7 +733,7 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/14/RateLimiter/" data-id="cjewkx2q60000g32m5h9mei9k" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/14/RateLimiter/" data-id="cjez4yjha0001nb2m07rmlc3k" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>
@@ -716,71 +802,10 @@
       
     </div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cjewkx2rn0015g32mltu4039y" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/09/weak-gc/" data-id="cjez4yjik0015nb2mte63zx2v" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
-
-    </footer>
-  </div>
-  
-</article>
-
-
-  
-    <article id="post-obejct-struct" class="article article-type-post" itemscope itemprop="blogPost">
-  <div class="article-meta">
-    <a href="/2017/07/04/obejct-struct/" class="article-date">
-  <time datetime="2017-07-04T11:49:46.000Z" itemprop="datePublished">2017-07-04</time>
-</a>
-    
-  </div>
-  <div class="article-inner">
-    
-    
-      <header class="article-header">
-        
-  
-    <h1 itemprop="name">
-      <a class="article-title" href="/2017/07/04/obejct-struct/">对象内存布局</a>
-    </h1>
-  
-
-      </header>
-    
-    <div class="article-entry" itemprop="articleBody">
-      
-        <p>  关于jvm中对象是如何分配内存的，在<a href="https://doubleclouder.github.io/2017/07/03/new-object-1/" target="_blank" rel="external">jvm源码分析之内存分配</a>中已经做过分析，现在我们就来讨论一下内存分配之后是如何布局的，简单的讲就是分配的内存区域里面到底存的是什么。</p>
-<p> <img src="http://osjt45oaj.bkt.clouddn.com/struct1.png" alt=""><br> 上图引用自《java虚拟机精讲》。图中可以一目了然的看出对象的内存布局。存储对象实例信息的内存布局主要有两部分构成：对象头和实例数据以及padding区域。</p>
-<ul>
-<li>对象头：分成两部分Mark Word和元数据指针。Mark Word主要用于存储对象运行时的数据信息。比如HashCode、GC分代年龄、锁状态标志、线程持有的锁、偏向线程ID、偏向时间戳等。而元数据指针则是指向方法区中目标类的类型信息，通过元数据指针可以指明当年对象是哪个类的实例。</li>
-<li>实例数据：主要用于存储定义在当前对象中的各种类型的字段信息（包括派生于超类的字段）。</li>
-<li>padding区：仅仅起着占位符的作用，jvm要求对象大小必须是8的倍数，若不是需要填充补齐，它不是必要存在的。</li>
-</ul>
-<p>当理解了Java对象在内存中如何存储之后，接下来我们看下jvm中是如何表达java类和对象实例的，底层jvm需要一套完整的内部对象表示机制，这种机制称为OOP-Klass模型，OOP(Ordinay Object Pionter)对象指针用于描述实例对象，而Klass则是用于描述对象实例的类型，对应上层java中的Class(之所以命名为Klass，是因为Class是c++中的关键字)。OOP与Klass是两个相互独立又彼此关联的模块。在JVM中对象头由OOP对象instanceOopDesc来表示，对象头中元数据指针锁指向的当前对象的目标类型是由Klass中的instanceKlass表示。栈中本地变量表中的引用变量指向堆上InstanceOopDesc对象，而instanceOopDesc对象持有只有instanceKlass的地址指针，如下图所示：</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/struct2.png" alt=""><br>下面重点分析一下mark word和实例数据部分。</p>
-<h1 id="Mark-Word"><a href="#Mark-Word" class="headerlink" title="Mark Word"></a>Mark Word</h1><p>-<br>Mark Word具有非固定的数据结构，以便在极小的空间内存储尽量多的信息。JVM可以通过Java对象的元数据确定对象长度，但是对于数组不行。如果对象是一个数组，对象头必须有一块儿用于记录数组长度的数据，这么做的目的是gc扫描时会根据对象头直接确定下一个对象的地址，不需要扫描整个对象空间。对于对象头长度而言，32bit虚拟机一定是32bit+32bit，即8字节；64bit虚拟机若没有开启了压缩指针，是64bit+64bit，即16字节，若开启了压缩指针，是64bit+32bit，即12字节（不是8bit的倍数）<br>-XX:+UseCompressedOops：开启压缩指针。</p>
-<h1 id="实例数据"><a href="#实例数据" class="headerlink" title="实例数据"></a>实例数据</h1><p>-<br>上面讲到实例数据部分存的是对象的各种类型的字段信息，包括基本类型和引用类型。我们在定义一个java类的时候不会去考虑字段的顺序，例如类A</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">public class A&#123;</div><div class="line">   double x;</div><div class="line">   float y;</div><div class="line">   int z;</div><div class="line">   long a;</div><div class="line">   String s;</div><div class="line">   ... </div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>但是jvm在创建对象的时候会按照一定的顺序去排列这些字段，顺序如下：</p>
-<ol>
-<li>double/long       8byte</li>
-<li>float/int         4byte</li>
-<li>short/char        2byte</li>
-<li>byte/boolean      1byte</li>
-<li>oop        4/8byte</li>
-</ol>
-<p>jvm默认以这种顺序去排列字段，这样做的原因是cpu读取内存时是按寄存器的大小单位（64位机器为64bit）载入的，如果载入的数据横跨两个64bit,要操作该数据的话必须两次读取加上组合移位，会产生效率问题，甚至会引发异常，所以必须要求数据对齐,同时也可以节省内存。<br>这种顺序也是可以更改的。通过指定jvm参数-XX:fIeldsAllocationStyle=mode，缺省状态下，jvm默认mode=1,mode还可以为0和2。为0时oop位于前面；mode=2时会将当前类和超类的oop字段放在一起，mode为0或1时会将派生类和超类的基本按照上述规则排在一起，oop类型位置不变，mode=2则也会将oop类型放在一起。按照jvm代码的注释可能更清晰</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">mode=0,Fields order: oops, longs/doubles, ints, shorts/chars, bytes, padded fields</div><div class="line">mode=1:Fields order: longs/doubles, ints, shorts/chars, bytes, oops, padded fields</div><div class="line">mode=2:Fields allocation: oops fields in super and sub classes are together.</div></pre></td></tr></table></figure>
-<p>相当mode=0和1，mode=2的优势是可以减少gc时创建的OopMapBlock对象的数量。OopMapBlock结构如下：<br><img src="http://osjt45oaj.bkt.clouddn.com/struct3.png" alt=""><br>我们都知道gc时需要从gc root对象开始定位所有的存活的对象，那么就需要根据引用链记录对象指针，而OopMapBlock对象就是用来存放对象指针的，它有两个字段offset(偏移量)和对象个数(count),如果oop是连续的，对于同一个对象只需要一个OopMapBlock对象记录oop开始位置的便宜量和oop的个数就ok,否则需要两个oopMapBlock。另外一个好处是连续的对象区域使得cache line的使用效率更高. 试想如果父对象和子对象的对象引用区域不连续, 而中间插入了原始类型字段的话, 那么在做GC对象扫描时, 很可能需要跨cache line读取才能完成扫描.</p>
-
-      
-    </div>
-    <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cjewkx2rh000yg32mtatkupoc" class="article-share-link">Share</a>
-      
-      
-  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/jvm/">jvm</a></li></ul>
 
     </footer>
   </div>
@@ -815,7 +840,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 16.67px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
     </div>
   </div>
 
@@ -837,6 +862,10 @@
       <ul>
         
           <li>
+            <a href="/2018/03/12/kafka-consumer1/">kafka Consumer中心协调器Coordinator</a>
+          </li>
+        
+          <li>
             <a href="/2018/03/11/kafka-4/">kafka学习笔记（四）-kafkaProducer NIO模型</a>
           </li>
         
@@ -850,10 +879,6 @@
         
           <li>
             <a href="/2017/11/19/kafka-one/">kafka学习笔记（一）kafka简介</a>
-          </li>
-        
-          <li>
-            <a href="/2017/09/24/dynamic-proxy/">ASM初探</a>
           </li>
         
       </ul>

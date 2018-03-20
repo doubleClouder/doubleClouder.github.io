@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>kafka Consumer中心协调器Coordinator | clouder的博客</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="description" content="前言对kafka Producer有了一定认识之后，我们继续聊一聊kafka客户端的另一部分Consumer端有关内容，当然仍然基于新的java版本的KafkaConsumer进行分析，本篇内容分析一下kafka如何对同一个消费组里多个consumer进行管理的，消费者之前是如何协调的。 rebalance机制我们知道kafka保证同一消费组中的每个consumer能够消费一个或者多个特定的par">
+<meta name="keywords" content="kafka">
+<meta property="og:type" content="article">
+<meta property="og:title" content="kafka Consumer中心协调器Coordinator">
+<meta property="og:url" content="http://yoursite.com/2018/03/12/kafka-consumer1/index.html">
+<meta property="og:site_name" content="clouder的博客">
+<meta property="og:description" content="前言对kafka Producer有了一定认识之后，我们继续聊一聊kafka客户端的另一部分Consumer端有关内容，当然仍然基于新的java版本的KafkaConsumer进行分析，本篇内容分析一下kafka如何对同一个消费组里多个consumer进行管理的，消费者之前是如何协调的。 rebalance机制我们知道kafka保证同一消费组中的每个consumer能够消费一个或者多个特定的par">
+<meta property="og:updated_time" content="2018-03-20T04:05:06.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="kafka Consumer中心协调器Coordinator">
+<meta name="twitter:description" content="前言对kafka Producer有了一定认识之后，我们继续聊一聊kafka客户端的另一部分Consumer端有关内容，当然仍然基于新的java版本的KafkaConsumer进行分析，本篇内容分析一下kafka如何对同一个消费组里多个consumer进行管理的，消费者之前是如何协调的。 rebalance机制我们知道kafka保证同一消费组中的每个consumer能够消费一个或者多个特定的par">
+  
+    <link rel="alternate" href="/atom.xml" title="clouder的博客" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png">
+  
+  
+    <link href="//fonts.googleapis.com/css?family=Source+Code+Pro" rel="stylesheet" type="text/css">
+  
+  <link rel="stylesheet" href="/css/style.css">
+  
+
+</head>
+
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">clouder的博客</a>
+      </h1>
+      
+        <h2 id="subtitle-wrap">
+          <a href="/" id="subtitle">在学习的道路上不断成长。。</a>
+        </h2>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+          <a id="nav-rss-link" class="nav-icon" href="/atom.xml" title="RSS Feed"></a>
+        
+        <a id="nav-search-btn" class="nav-icon" title="搜索"></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="http://yoursite.com"></form>
+      </div>
+    </div>
+  </div>
+</header>
+      <div class="outer">
+        <section id="main"><article id="post-kafka-consumer1" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2018/03/12/kafka-consumer1/" class="article-date">
+  <time datetime="2018-03-12T02:49:08.000Z" itemprop="datePublished">2018-03-12</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="article-title" itemprop="name">
+      kafka Consumer中心协调器Coordinator
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>对kafka Producer有了一定认识之后，我们继续聊一聊kafka客户端的另一部分Consumer端有关内容，当然仍然基于新的java版本的KafkaConsumer进行分析，本篇内容分析一下kafka如何对同一个消费组里多个consumer进行管理的，消费者之前是如何协调的。</p>
+<h1 id="rebalance机制"><a href="#rebalance机制" class="headerlink" title="rebalance机制"></a>rebalance机制</h1><p>我们知道kafka保证同一消费组中的每个consumer能够消费一个或者多个特定的partition数据，一个partition的数据只能被一个consumer消费；因为每个partition里的消息是有序的，这样可以保证partition中的数据被同一个消费者有序消费；同时consumer只需要和自己消费的partition的broker通信就可以，减少开销。</p>
+<p>在kafka中消费者的分区分配策略默认有两种：range和RoundRobin。<br>假设一个consumer group中有三个消费者C0 C1 C2,要消费的topic包含10个partition p0-p19; Range的分配策略是partition个数除以消费者个数，剩下的从头分配 10/3 = 3 则C0分配 0，1，2，3；C1分配4，5，6；C2分配7，8，9；RoundRobin的分配策略则是按Partion的hashCode进行排序，同时对消费者进行排序，然后按hashCode取模进行分配。</p>
+<p>consumer rebalance的触发条件：</p>
+<ul>
+<li>Consumer Group的消费者增加或者减少</li>
+<li>Broker的增加或者减少</li>
+</ul>
+<p>Rebalance的步骤如下：</p>
+<ul>
+<li>根据分配策略重新确定每个消费者分配的partition,</li>
+<li>解除Ci对原来分配的Partition的消费权（i从0开始）</li>
+<li>Ci开始消费新的partition</li>
+</ul>
+<h2 id="基于zk的rebalance"><a href="#基于zk的rebalance" class="headerlink" title="基于zk的rebalance"></a>基于zk的rebalance</h2><p>在kafka0.9版本之前,consumer的rebalance是通过在zookeeper上注册watch完成的。每个consumer创建的时候，会在在Zookeeper上的路径为/consumers/[consumer group]/ids/[consumer id]下将自己的id注册到消费组下；然后在/consumers/[consumer group]/ids 和/brokers/ids下注册watch；最后强制自己在消费组启动rebalance。</p>
+<p>这种做法很容易带来zk的羊群效应，任何Broker或者Consumer的增减都会触发所有的Consumer的Rebalance，造成集群内大量的调整；同时由于每个consumer单独通过zookeeper判断Broker和consumer宕机，由于zk的脑裂特性，同一时刻不同consumer通过zk看到的表现可能是不一样，这就可能会造成很多不正确的rebalance尝试；除此之外，由于consumer彼此独立，每个consumer都不知道其他consumer是否rebalance成功，可能会导致consumer group消费不正确。</p>
+<h2 id="Coordinator"><a href="#Coordinator" class="headerlink" title="Coordinator"></a>Coordinator</h2><p>基于zk的rebalance存在不可避免的羊群效应和脑裂问题，如何不用zk来协调，而是将失败探测和Rebalance的逻辑放到一个高可用的中心，那么上述问题就能得以解决；因此kafka0.9.*的版本重新设计了consumer端，诞生了这样一个高可用中心Coordinator，大大减少了zookeeper负载。</p>
+<p>对于每一个Consumer Group，Kafka集群为其从broker集群中选择一个broker作为其coordinator。coordinator主要做两件事：</p>
+<ul>
+<li>维持group的成员组成。这包括加入新的成员，检测成员的存活性，清除不再存活的成员。</li>
+<li>协调group成员的行为。</li>
+</ul>
+<p>Coordinator有如下几种类型：</p>
+<ul>
+<li>GroupCoordinator：broker端的，每个kafka server都有一个实例，管理部分的consumer group和它们的offset</li>
+<li>WorkerCoordinator：broker端的，管理GroupCoordinator程序，主要管理workers的分配。</li>
+<li>ConsumerCoordinator：consumer端的，和GroupCoordinator通信的媒介。</li>
+</ul>
+<p>ConsumerCoordinator是KafkaConsumer的一个成员，只负责与GroupCoordinator通信，所以真正的协调者还是GroupCoordinator。</p>
+<h3 id="协调过程分析"><a href="#协调过程分析" class="headerlink" title="协调过程分析"></a>协调过程分析</h3><ol>
+<li>消费者在启动或者协调节点故障转移时，消费者发送ConsumerMetadataRequest给bootstrap brokers列表中的任意一个brokers。在ConsumerMetadataResponse中，它接收消费者对应的消费组所属的协调节点的位置信息。</li>
+<li>Consumer连接Coordinator节点，并发送HeartbeatRequest。如果返回的HeartbeatResponse中返回IllegalGeneration错误码，说明协调节点已经在初始化平衡。消费者就会停止抓取数据，提交offsets，发送JoinGroupRequest给协调节点。在JoinGroupResponse，它接收消费者应该拥有的topic-partitions列表以及当前Consumer Group的新的generation编号。这个时候Consumer Group管理已经完成，Consumer就可以开始fetch数据，并为它拥有的partitions提交offsets。</li>
+<li>如果HeartbeatResponse没有错误返回，Consumer会从它上次拥有的partitions列表继续抓取数据。</li>
+</ol>
+<p>在coordinator中，实际在还在消费组中定义了一个角色leader。所有的成员都向coordinator注册，由coordinator选出leader,由leader来为组中成员分配资源；单个Kafka集群可能会存在着比broker的数量大得多的消费者和消费者组，而消费者的情况可能是不稳定的，可能会频繁变化，每次变化都需要一次协调，如果由broker来负责实际的协调工作，会给broker增加很多负担。所以，从group memeber里选出来一个做为leader，由leader来执行性能开销大的协调任务, 这样把负载分配到client端，可以减轻broker的压力，支持更多数量的消费组。leader 与follower是不直接通信的。consumer group的成员把它们所订阅的topic发送给coordinator。然后coordinator来选择一个leader, 然后由coordinator把这个group的所有成员的订阅情况发给leader，由leader来执行分区的分配，然后把结果发给coordinator。由coordinator来转发分配的结果到每个group的成员。</p>
+<p>这里我们看下消费端负责与Coodinator通信的CosumerCoordinator</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div><div class="line">60</div><div class="line">61</div><div class="line">62</div><div class="line">63</div><div class="line">64</div><div class="line">65</div><div class="line">66</div><div class="line">67</div><div class="line">68</div><div class="line">69</div><div class="line">70</div><div class="line">71</div><div class="line">72</div><div class="line">73</div><div class="line">74</div><div class="line">75</div></pre></td><td class="code"><pre><div class="line">protected Map&lt;String, ByteBuffer&gt; performAssignment(String leaderId,</div><div class="line">                                                        String assignmentStrategy,</div><div class="line">                                                        Map&lt;String, ByteBuffer&gt; allSubscriptions) &#123;</div><div class="line">        PartitionAssignor assignor = lookupAssignor(assignmentStrategy);</div><div class="line">        if (assignor == null)</div><div class="line">            throw new IllegalStateException(&quot;Coordinator selected invalid assignment protocol: &quot; + assignmentStrategy);</div><div class="line"></div><div class="line">        Set&lt;String&gt; allSubscribedTopics = new HashSet&lt;&gt;();</div><div class="line">        Map&lt;String, Subscription&gt; subscriptions = new HashMap&lt;&gt;();</div><div class="line">        for (Map.Entry&lt;String, ByteBuffer&gt; subscriptionEntry : allSubscriptions.entrySet()) &#123;</div><div class="line">            Subscription subscription = ConsumerProtocol.deserializeSubscription(subscriptionEntry.getValue());</div><div class="line">            subscriptions.put(subscriptionEntry.getKey(), subscription);</div><div class="line">            allSubscribedTopics.addAll(subscription.topics());</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        // the leader will begin watching for changes to any of the topics the group is interested in,</div><div class="line">        // which ensures that all metadata changes will eventually be seen</div><div class="line">        this.subscriptions.groupSubscribe(allSubscribedTopics);</div><div class="line">        metadata.setTopics(this.subscriptions.groupSubscription());</div><div class="line"></div><div class="line">        // update metadata (if needed) and keep track of the metadata used for assignment so that</div><div class="line">        // we can check after rebalance completion whether anything has changed</div><div class="line">        client.ensureFreshMetadata();</div><div class="line"></div><div class="line">        isLeader = true;</div><div class="line"></div><div class="line">        log.debug(&quot;Performing assignment for group &#123;&#125; using strategy &#123;&#125; with subscriptions &#123;&#125;&quot;,</div><div class="line">                groupId, assignor.name(), subscriptions);</div><div class="line"></div><div class="line">        Map&lt;String, Assignment&gt; assignment = assignor.assign(metadata.fetch(), subscriptions);</div><div class="line"></div><div class="line">        // user-customized assignor may have created some topics that are not in the subscription list</div><div class="line">        // and assign their partitions to the members; in this case we would like to update the leader&apos;s</div><div class="line">        // own metadata with the newly added topics so that it will not trigger a subsequent rebalance</div><div class="line">        // when these topics gets updated from metadata refresh.</div><div class="line">        //</div><div class="line">        // TODO: this is a hack and not something we want to support long-term unless we push regex into the protocol</div><div class="line">        //       we may need to modify the PartitionAssingor API to better support this case.</div><div class="line">        Set&lt;String&gt; assignedTopics = new HashSet&lt;&gt;();</div><div class="line">        for (Assignment assigned : assignment.values()) &#123;</div><div class="line">            for (TopicPartition tp : assigned.partitions())</div><div class="line">                assignedTopics.add(tp.topic());</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        if (!assignedTopics.containsAll(allSubscribedTopics)) &#123;</div><div class="line">            Set&lt;String&gt; notAssignedTopics = new HashSet&lt;&gt;(allSubscribedTopics);</div><div class="line">            notAssignedTopics.removeAll(assignedTopics);</div><div class="line">            log.warn(&quot;The following subscribed topics are not assigned to any members in the group &#123;&#125; : &#123;&#125; &quot;, groupId,</div><div class="line">                    notAssignedTopics);</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        if (!allSubscribedTopics.containsAll(assignedTopics)) &#123;</div><div class="line">            Set&lt;String&gt; newlyAddedTopics = new HashSet&lt;&gt;(assignedTopics);</div><div class="line">            newlyAddedTopics.removeAll(allSubscribedTopics);</div><div class="line">            log.info(&quot;The following not-subscribed topics are assigned to group &#123;&#125;, and their metadata will be &quot; +</div><div class="line">                    &quot;fetched from the brokers : &#123;&#125;&quot;, groupId, newlyAddedTopics);</div><div class="line"></div><div class="line">            allSubscribedTopics.addAll(assignedTopics);</div><div class="line">            this.subscriptions.groupSubscribe(allSubscribedTopics);</div><div class="line">            metadata.setTopics(this.subscriptions.groupSubscription());</div><div class="line">            client.ensureFreshMetadata();</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        assignmentSnapshot = metadataSnapshot;</div><div class="line"></div><div class="line">        log.debug(&quot;Finished assignment for group &#123;&#125;: &#123;&#125;&quot;, groupId, assignment);</div><div class="line"></div><div class="line">        Map&lt;String, ByteBuffer&gt; groupAssignment = new HashMap&lt;&gt;();</div><div class="line">        for (Map.Entry&lt;String, Assignment&gt; assignmentEntry : assignment.entrySet()) &#123;</div><div class="line">            ByteBuffer buffer = ConsumerProtocol.serializeAssignment(assignmentEntry.getValue());</div><div class="line">            groupAssignment.put(assignmentEntry.getKey(), buffer);</div><div class="line">        &#125;</div><div class="line"></div><div class="line">        return groupAssignment;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
+<p>ConsumerCoordinator中实现了这样一个方法performAssignment，它的入参的是leaderId以及包含所有组成员及partition的meta信息;assignmentStrategy指定了分配策略，这个实际上上是执行的一开始我们介绍的分区分配策略，默认Range或者RoundRobin；PartitionAssignor实现代表具体的策略。leader计算好各member的分区之后，将结果返回给coordinator</p>
+<h4 id="Coordinator工作过程"><a href="#Coordinator工作过程" class="headerlink" title="Coordinator工作过程"></a>Coordinator工作过程</h4><ol>
+<li>在稳定状态下，协调节点通过故障检测协议跟踪每个消费组中每个消费者的健康状况。</li>
+<li>在选举和启动时，协调节点读取它管理的消费组列表，以及从ZK中读取每个消费组的成员信息。如果之前没有成员信息，它不会做任何动作。只有在同一个消费组的第一个消费者注册进来时，协调节点才开始工作(即开始加载消费组的消费者成员信息)。</li>
+<li>当协调节点完全加载完它所负责的消费组列表的所有组成员之前，它会在以下几种请求的响应中返回CoordinatorStartupNotComplete错误码：HeartbeatRequest，OffsetCommitRequest，JoinGroupRequest。这样消费者就会过段时间重试(直到完全加载，没有错误码返回为止)，知道消费者与coordinator建立连接<br>4.在选举或启动时，协调节点会对消费组中的所有消费者进行故障检测。根据故障检测协议被协调节点标记为Dead的消费者会从消费组中移除，这个时候协调节点会为Dead的消费者所属的消费组触发一个平衡操作(消费者Dead之后，这个消费者拥有的partition需要平衡给其他消费者)。<br>5.当HeartbeatResponse返回IllegalGeneration错误码，就会触发平衡操作。一旦所有存活的消费者通过JoinGroupRequests重新注册到协调节点，协调节点会将最新的partition所有权信息在JoinGroupResponse的每个消费者之间通信(同步)，然后就完成了平衡操作。<br>6.协调节点会跟踪任何一个消费者已经注册的topics的topic-partition的变更。如果它检测到某个topic新增的partition，就会触发平衡操作。当创建一个新的topics也会触发平衡操作，因为消费者可以在topic被创建之前就注册它感兴趣的topics。</li>
+</ol>
+<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>kafka是使用一个broker作为coordinator来动态协调消费组各消费者，替代之后消费者自己在zookeeper注册watch的方式，提高了高用性，大大降低了zk的压力。</p>
+<p>参考：</p>
+<p><a href="http://zqhxuyuan.github.io/2016/02/22/2016-02-22-Kafka-Consumer-new/" target="_blank" rel="external">Kafka源码分析 KafkaConsumer（翻译和注释）</a></p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="http://yoursite.com/2018/03/12/kafka-consumer1/" data-id="cjez4yjhr000dnb2mlz8tdwpn" class="article-share-link">Share</a>
+      
+      
+  <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kafka/">kafka</a></li></ul>
+
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+  
+    <a href="/2018/03/11/kafka-4/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">kafka学习笔记（四）-kafkaProducer NIO模型</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签</h3>
+    <div class="widget">
+      <ul class="tag-list"><li class="tag-list-item"><a class="tag-list-link" href="/tags/guava/">guava</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/java/">java</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/java-IO/">java IO</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/jvm/">jvm</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/kafka/">kafka</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/redis/">redis</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/并发/">并发</a></li><li class="tag-list-item"><a class="tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">标签云</h3>
+    <div class="widget tagcloud">
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+    </div>
+  </div>
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">归档</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2018/03/">三月 2018</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/11/">十一月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/09/">九月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/08/">八月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/07/">七月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/06/">六月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/05/">五月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/04/">四月 2017</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2017/03/">三月 2017</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">最新文章</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2018/03/12/kafka-consumer1/">kafka Consumer中心协调器Coordinator</a>
+          </li>
+        
+          <li>
+            <a href="/2018/03/11/kafka-4/">kafka学习笔记（四）-kafkaProducer NIO模型</a>
+          </li>
+        
+          <li>
+            <a href="/2018/03/08/kafka-producer-nio/">kafka学习笔记（三）- KafkaProducer分析</a>
+          </li>
+        
+          <li>
+            <a href="/2017/11/20/kafka-zero-copy/">kafka学习笔记（二）zero-copy使用分析</a>
+          </li>
+        
+          <li>
+            <a href="/2017/11/19/kafka-one/">kafka学习笔记（一）kafka简介</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      &copy; 2018 zhusheng<br>
+      Powered by <a href="http://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+  <link rel="stylesheet" href="/fancybox/jquery.fancybox.css">
+  <script src="/fancybox/jquery.fancybox.pack.js"></script>
+
+
+<script src="/js/script.js"></script>
+
+  </div>
+</body>
+</html>

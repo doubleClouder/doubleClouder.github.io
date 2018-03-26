@@ -106,8 +106,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="new-Object"><a href="#new-Object" class="headerlink" title="new Object"></a>new Object</h1><p>  java程序猿找不到对象怎么办，最简单的办法:new一个。（扎心了，对象还是要自己找。。）。new关键字大家都很熟悉，我们使用new来实例化任何我们需要的对象。Object object = new Object()一行代码对象创建完成，但是大家是否有了解过这行代码背后都做了些什么？其实底层jvm做了一系列非常复杂的工作，现在我们就来扒一扒。</p>
+  
+    
+    
+      <h1 id="new-Object"><a href="#new-Object" class="headerlink" title="new Object"></a>new Object</h1><p>  java程序猿找不到对象怎么办，最简单的办法:new一个。（扎心了，对象还是要自己找。。）。new关键字大家都很熟悉，我们使用new来实例化任何我们需要的对象。Object object = new Object()一行代码对象创建完成，但是大家是否有了解过这行代码背后都做了些什么？其实底层jvm做了一系列非常复杂的工作，现在我们就来扒一扒。</p>
 <p>  创建一个java对象需要三步：声明引用变量、实例化、初始化对象实例。实例化是真正创建一个java对象，分配内存并返回指向改内存的引用。初始化是指调用构造方法，对类的实例数据赋初值。对于Object object = new Object()可以分成两个部分，”Object obj”这部分的语义作用于Java栈中，会在栈帧中的本地变量表中创建一个引用类型的数据obj,而”new Object()”这部分的语义将会作用于java堆中，形成一块存储Object类型的所有实例数据值的内存区域（当然严格的来讲，对象也是可以在栈上分配内存的，jvm中可以借助对象的逃逸分析来决定一些小对象是否在可以进行栈上分配，这样做的目的是为了降低GC回收频率以及提升GC回收效率，但这毕竟只是一种jvm调优的辅助手段，绝大多数对象实例只能在java堆区分配存储）。下面我们就通过源码看一下对象的内存到底是如何分配的。</p>
  <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line">class AAA&#123;</div><div class="line">  public static void main(string[] args)&#123;</div><div class="line">    Object = new Object()</div><div class="line">  &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
 <p> 利用javap命令反编译上面的代码可以得到：</p>
@@ -141,10 +143,11 @@
 <p>first_only代表是否只在新生代分配，根据上面的代码可以看出大的对象这个值为false，在attempt_allocation方法中，会遍历所有的内存代尝试分配内存，如果first_only为true的话则只在新生代进行分配，如果分配失败直接返回。<br>继续看mem_allocate_work下面的代码：<br>如果上面分配内存仍然失败，则继续执行。<br><img src="http://osjt45oaj.bkt.clouddn.com/new12.png" alt=""><br>1、gc_locker::is_active_and_needs_gc()为真时，表示当前其它线程已经触发了gc；<br>2、如果is_tlab为真，表示当前线程正在为局部分配缓冲区申请内存；<br>3、如果!gch-&gt;is_maximal_no_gc()为真，表示新生代或老年代可以进行内存扩展，扩展完成后，再次尝试从各代中进行分配expand_heap_and_allocate方法。<br>4.如果拓展后分配仍然不成功，则继续往下执行<br><img src="http://osjt45oaj.bkt.clouddn.com/new13.png" alt=""><br>如果当前线程没有位于jni的临界区，将释放Java堆的互斥锁，以使得请求gc的线程可以进行gc操作，等所有本地线程退出临界区和gc完成后，将继续循环尝试分配内存。<br>如果还是分配不成功，则执行GC操作.<br><img src="http://osjt45oaj.bkt.clouddn.com/new14.png" alt=""></p>
 <h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>上述就是jvm中关于对象分配内存的整个流程，jvm会优先以快速分配的方式在tlab上进行，如果分配失败进行堆上分配或者执行tlab的refill过程，期间还有gc的参与，最终是为了给对象在堆上分配一块内存。</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjez4yjie000znb2mkmplp8q2" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjf7ze990000x0t2mu57y8a7x" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -196,7 +199,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

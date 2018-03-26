@@ -93,17 +93,20 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <p>缓存在现在的各种系统中的作用事不言而喻的，cache一般指为提高系统性能而开辟的一块内存空间，利用缓存不仅可以提高系统响应时间，还可以节省处理数据的资源消耗。现在有很多优秀的cache框架提供非常强大的功能，但是对于数据不是很大，数据结构简单的我们可以考虑本地缓存，Guava Cache是一个基于全内存的本地缓存实现，应该可以说是目前为止java实现本地缓存的不二之选。</p>
+  
+    
+    
+      <p>缓存在现在的各种系统中的作用事不言而喻的，cache一般指为提高系统性能而开辟的一块内存空间，利用缓存不仅可以提高系统响应时间，还可以节省处理数据的资源消耗。现在有很多优秀的cache框架提供非常强大的功能，但是对于数据不是很大，数据结构简单的我们可以考虑本地缓存，Guava Cache是一个基于全内存的本地缓存实现，应该可以说是目前为止java实现本地缓存的不二之选。</p>
 <p>Guava Cache可以看成一个concurrentHashMap,因而它是线程安全的，除此之外，它内部还实现了缓存淘汰，避免长期的内存占用。我们还是先看下如何使用它，有两种方式可以创建Guava Cache,CacheLoader和Callable,主要区别是CacheLoader创建时需要指定与键关联的值的逻辑运算，简单的说，创建时能根据键经过运算得到值就用前者，否则用后者。我们先上代码：</p>
 <h1 id="CacheLoader"><a href="#CacheLoader" class="headerlink" title="CacheLoader"></a>CacheLoader</h1><p><img src="http://osjt45oaj.bkt.clouddn.com/a.png" alt=""><br>上面我们定义了一个抽象类，提供一个无参和一个带失效时间参数的构造方法，但都需要创建一个CacheLoader提供给CacheBuilder,CacheBuilder还有很多实用的参数配置，感兴趣的可以自行研究下，这里不做赘述，创建时根据具体服务继承这个抽象类实现loadData()方法就可以了，使用时最终是通过loadingCahce的get(k)取值。这个方法先从缓存中取值，若没取到则通过CacheLoader原子的向缓存中添加新值。</p>
 <h1 id="Callable"><a href="#Callable" class="headerlink" title="Callable"></a>Callable</h1><p><img src="http://osjt45oaj.bkt.clouddn.com/b.png" alt=""><br> 这里也是cache.get(k)取值，没取到通过callable原子添加。也可通过cache.put(key.value)显示的添加新值。Guava Cache的用法很简单，下面我们来看下他到底是如何存的。前面我们也提过Guava Cache与ConcurrentHashMap类似，它延用了ConcurentHashMap的设计思路，使用多个segment来细粒度锁，保证线程安全下的并发效率。下面是segment的数据结构。<br><img src="http://osjt45oaj.bkt.clouddn.com/c.png" alt=""><br>每个segment包含一个ReferenceEntry数组，数组每项都是一个ReferenceEntry链，每个ReferenceEntry包含key,hash，valueReference和next字段。在一个segment中，所有的ReferenceEntry还组成一个accessQueue和一个writeQueue。这两个queue是了实现缓存淘汰算法-LRU算法,这两条链都是一个双向链表，通过ReferenceEntry中的previousInWriteQueue、nextInWriteQueue和previousInAccessQueue、nextInAccessQueue链接而成。WriteQueue和AccessQueue都是自定义了offer、add（直接调用offer）、remove、poll等操作的逻辑，对于offer（add）操作，如果是新加的节点，则直接加入到该链的结尾，如果是已存在的节点，则将该节点链接的链尾；对remove操作，直接从该链中移除该节点；对poll操作，将头节点的下一个节点移除，并返回。在对每个节点的更新操作都会将该节点重新链到write链和access链末尾，并且更新其writeTime和accessTime字段，而每找到一个节点，都会将该节点重新链到access链末尾，并更新其accessTime字段。这两个双向链表的存在都是为了实现采用最近最少使用算法（LRU）的evict操作（expire、size limit引起的evict）。</p>
 <p> ReferenceEntry会根据是否配置了expireAfterWrite、expireAfterAccess、maximumSize来决定是否需要write链和access链确定要创建的具体Reference：StrongEntry、StrongWriteEntry等，可以指定ReferenceEntry的key为强引用Reference或WeakReference以达到自动内存回收的目的。对于ValueReference,它对应三个实现类，分别为StrongValueReference、SoftValueReference、WeakValueReference。ValueReference还持有对ReferenceEntry的引用，这样做是因为在SoftValueRerence和WeakValueReference被回收时，需要将其key对应的项在segement中移除。Guava Cache在每次操作时会去检查是否需要evict操作，这样也可能发生在缓存长期会使用的情况下导致某些清理的entry未能清理。</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cjez4yjhw000inb2m2gwnfzou" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/17/guava-cache/" data-id="cjf7ze98i000h0t2mp5alkkpv" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>
@@ -114,11 +117,11 @@
     
 <nav id="article-nav">
   
-    <a href="/2017/04/06/reactor-I-O/" id="article-nav-newer" class="article-nav-link-wrap">
+    <a href="/2017/03/23/decorator/" id="article-nav-newer" class="article-nav-link-wrap">
       <strong class="article-nav-caption">Newer</strong>
       <div class="article-nav-title">
         
-          理解Reactor与Proactor
+          装饰模式
         
       </div>
     </a>
@@ -155,7 +158,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

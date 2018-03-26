@@ -93,8 +93,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <p>  关于jvm中对象是如何分配内存的，在<a href="https://doubleclouder.github.io/2017/07/03/new-object-1/" target="_blank" rel="external">jvm源码分析之内存分配</a>中已经做过分析，现在我们就来讨论一下内存分配之后是如何布局的，简单的讲就是分配的内存区域里面到底存的是什么。</p>
+  
+    
+    
+      <p>  关于jvm中对象是如何分配内存的，在<a href="https://doubleclouder.github.io/2017/07/03/new-object-1/" target="_blank" rel="external">jvm源码分析之内存分配</a>中已经做过分析，现在我们就来讨论一下内存分配之后是如何布局的，简单的讲就是分配的内存区域里面到底存的是什么。</p>
 <p> <img src="http://osjt45oaj.bkt.clouddn.com/struct1.png" alt=""><br> 上图引用自《java虚拟机精讲》。图中可以一目了然的看出对象的内存布局。存储对象实例信息的内存布局主要有两部分构成：对象头和实例数据以及padding区域。</p>
 <ul>
 <li>对象头：分成两部分Mark Word和元数据指针。Mark Word主要用于存储对象运行时的数据信息。比如HashCode、GC分代年龄、锁状态标志、线程持有的锁、偏向线程ID、偏向时间戳等。而元数据指针则是指向方法区中目标类的类型信息，通过元数据指针可以指明当年对象是哪个类的实例。</li>
@@ -118,10 +120,11 @@
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">mode=0,Fields order: oops, longs/doubles, ints, shorts/chars, bytes, padded fields</div><div class="line">mode=1:Fields order: longs/doubles, ints, shorts/chars, bytes, oops, padded fields</div><div class="line">mode=2:Fields allocation: oops fields in super and sub classes are together.</div></pre></td></tr></table></figure>
 <p>相当mode=0和1，mode=2的优势是可以减少gc时创建的OopMapBlock对象的数量。OopMapBlock结构如下：<br><img src="http://osjt45oaj.bkt.clouddn.com/struct3.png" alt=""><br>我们都知道gc时需要从gc root对象开始定位所有的存活的对象，那么就需要根据引用链记录对象指针，而OopMapBlock对象就是用来存放对象指针的，它有两个字段offset(偏移量)和对象个数(count),如果oop是连续的，对于同一个对象只需要一个OopMapBlock对象记录oop开始位置的便宜量和oop的个数就ok,否则需要两个oopMapBlock。另外一个好处是连续的对象区域使得cache line的使用效率更高. 试想如果父对象和子对象的对象引用区域不连续, 而中间插入了原始类型字段的话, 那么在做GC对象扫描时, 很可能需要跨cache line读取才能完成扫描.</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cjez4yjib000vnb2mn5js86i5" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cjf7ze99500130t2mgx6m7dn2" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/jvm/">jvm</a></li></ul>
@@ -173,7 +176,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

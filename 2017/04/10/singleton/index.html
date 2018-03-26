@@ -96,14 +96,17 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <p>如何确保一个java类只被实例化一次？很显然，答案是单例模式。单例模式是一种常见而且非常有用的设计模式，我们到处能看见单例模式的身影，比如创建各种连接池、线程池、日志对象等。单例类通过自行实例化并且在系统中有实例请求时提供这个实例，从而确保该类只被实例化一次。</p>
+  
+    
+    
+      <p>如何确保一个java类只被实例化一次？很显然，答案是单例模式。单例模式是一种常见而且非常有用的设计模式，我们到处能看见单例模式的身影，比如创建各种连接池、线程池、日志对象等。单例类通过自行实例化并且在系统中有实例请求时提供这个实例，从而确保该类只被实例化一次。</p>
 <h2 id="懒汉式"><a href="#懒汉式" class="headerlink" title="懒汉式"></a>懒汉式</h2><p><img src="http://osjt45oaj.bkt.clouddn.com/singleton1.png" alt=""><br>懒汉式实际上是一种懒加载，但为了在多线程环境下不破坏单例，需要在获取实例时增加双重检查或静态内部类的方式确保线程安全。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton2.png" alt=""><br>通过双重检测可以确保singleton只被实例化一次，但这里其实还是有问题，因为对象初始化和为对象引用赋值存在指令重排序，线程判断singleton不为null时返回的可能是一个未初始化的对象，可以用volatile关键字解决，这里不做赘述。我们还可以通过静态内部类的方式达到线程安全的目的。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton3.png" alt=""><br>通过静态内部类的方式获取Singleton的实例是线程安全的，因为jvm保证类的加载和初始化过程是线程安全的，所以此种方式创建单例既实现线程安全，又避免同步带来的性能英雄，要优于双重检查的方式。<br>那么问题来了，上面线程安全的单例是否不论什么情况下都只有一个实例？答案是否定的。我们可以通过反射和反序列化来破坏单例。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton4.png" alt=""><br>上面是通过反射的方式强行调用构造方法，显然输出结果为false。当单例类实现了Serializable接口，即该类对象可序列化时，可以通过序列化和反序列化过程自行获取实例。序列化与反序列可以实现对象的深拷贝。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton5.png" alt=""><br>为了防止这种暴力的破坏单例，可以对上面的单例类稍加改造。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton6.png" alt=""><br> 到此为止，我们就创建了一个严格意义的单例，实际上枚举类内部实现与此类似，所以枚举是实现单例最好的方式。</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjez4yjii0013nb2mu2hr71rx" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjf7ze99b00170t2m180wkouq" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -155,7 +158,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

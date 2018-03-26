@@ -91,8 +91,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>CAS(compare and swap)在并发领域有着不可或缺的作用，并发大神Doug lea在线程同步中大量使用cas,写出很多颇具艺术性的代码,可以说没有cas，就没有java.util.concurrent包。</p>
+  
+    
+    
+      <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>CAS(compare and swap)在并发领域有着不可或缺的作用，并发大神Doug lea在线程同步中大量使用cas,写出很多颇具艺术性的代码,可以说没有cas，就没有java.util.concurrent包。</p>
 <p>CAS的概念想必大家都很清楚，就是字面意思”比较替换”,cas中有三个值：当前内存值V,预期内存值A,要更新的值B。比较内存值V与预期值A是否相同，若是则将V更新成B，否则do nothing。</p>
 <h1 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h1><p>从一个i++问题开始</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">public Test implements Runnable&#123;</div><div class="line"></div><div class="line">    volatile int i;</div><div class="line"></div><div class="line">    public void run() &#123;</div><div class="line">        i++;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
@@ -131,10 +133,11 @@
 </ul>
 <p>解决办法：1.可以用锁。 2.合并这两个变量 Atomic包提供的atomicRefrence应用保证对象之前的原子性，可以把多个变量放在同一个对象里来进行cas操作。</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/02/concurrent-1-cas/" data-id="cjez4yjhf0003nb2moj492nag" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/02/concurrent-1-cas/" data-id="cjf7ze98100040t2m1jmlv0at" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -186,7 +189,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

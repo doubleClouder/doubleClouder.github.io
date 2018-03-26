@@ -91,8 +91,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="BIO与NIO"><a href="#BIO与NIO" class="headerlink" title="BIO与NIO"></a>BIO与NIO</h1><p>BIO是Java IO最开始提供的一种IO模型，在传统BIO中，ServerSocket 负责绑定IP地址，启动监听端口；Socket负责发起连接操作，连接成功后，双方通过输入和输出流进行同步阻塞通信。采用BIO通信模型的Server，通常由一个独立的Acceptor线程负责监听Client端的连接，它接受到Client端连接请求后为每个Client创建一个新的线程进行处理，处理完之后，通过输出流返回给Client端，线程销毁。</p>
+  
+    
+    
+      <h1 id="BIO与NIO"><a href="#BIO与NIO" class="headerlink" title="BIO与NIO"></a>BIO与NIO</h1><p>BIO是Java IO最开始提供的一种IO模型，在传统BIO中，ServerSocket 负责绑定IP地址，启动监听端口；Socket负责发起连接操作，连接成功后，双方通过输入和输出流进行同步阻塞通信。采用BIO通信模型的Server，通常由一个独立的Acceptor线程负责监听Client端的连接，它接受到Client端连接请求后为每个Client创建一个新的线程进行处理，处理完之后，通过输出流返回给Client端，线程销毁。</p>
 <p>在高并发场景下，BIO模型的弊端就显露无疑，流量增大会导致线程数膨胀最终导致服务崩溃。其实BIO对此有所改进，抛弃线程一对一处理请求，使用线程池处理所有客户端请求，另外使用消息队列接受客户端请求。但由于它仍然是面向数据流的，底层仍然是同步阻塞模型，阻塞时间取决于线程处理时间和IO传输时间。</p>
 <p>NIO相对BIO来说是一种新的IO模型，与Socket类和ServerSocket类相对应，NIO也提供了SocketChannel和 ServerSocketChannel两种不同套接字通道的实现，它们都支持阻塞和非阻塞两种模式。一般来说，低负载、低并发的应用程序可以选择同步阻塞IO以降低复杂度，但是高负载、高并发的网络应用，需要使用NIO的非阻塞模式进行开发。NIO这种不做详细介绍。</p>
 <h1 id="Reactor与Proactor"><a href="#Reactor与Proactor" class="headerlink" title="Reactor与Proactor"></a>Reactor与Proactor</h1><p>reactor和proactor是两种常用的事件分发IO多路复用方案。通常来讲 reactor是基于同步IO，而proactor是基于异步IO（不是绝对的），两者都是有一个event demultiplexer（事件多路分解器）来检测IO状态，不同的handler来注册对某个IO的监听，当IO可以使用的时候，event demultiplexer来通知相应的handler。</p>
@@ -124,10 +126,11 @@
 </ul>
 <h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p> 可以看出，两个模式的相同点，都是对某个IO事件的事件通知(即告诉某个模块，这个IO操作可以进行或已经完成)。在结构上，两者也有相同点：demultiplexor负责提交IO操作(异步)、查询设备是否可操作(同步)，然后当条件满足时，就回调handler；不同点在于，异步情况下(Proactor)，当回调handler时，表示IO操作已经完成；同步情况下(Reactor)，回调handler时，表示IO设备可以进行某个操作(can read or can write)。</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/06/reactor-I-O/" data-id="cjez4yjic000xnb2movbreof4" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/06/reactor-I-O/" data-id="cjf7ze99300110t2m6pnikjqr" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java-IO/">java IO</a></li></ul>
@@ -148,9 +151,9 @@
     </a>
   
   
-    <a href="/2017/03/17/guava-cache/" id="article-nav-older" class="article-nav-link-wrap">
+    <a href="/2017/03/23/decorator/" id="article-nav-older" class="article-nav-link-wrap">
       <strong class="article-nav-caption">Older</strong>
-      <div class="article-nav-title">本地缓存之Guava cache</div>
+      <div class="article-nav-title">装饰模式</div>
     </a>
   
 </nav>
@@ -179,7 +182,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

@@ -91,8 +91,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>在探讨我们标题的内容之前，我们先来看下java要实现一个简单的延迟任务该如何实现（只考虑单机情况）。延迟任务是指由一个事件触发，经过一段时间触发另一个事件；比如用户开通会员一分钟后给用户发短信，比如下单五分钟内未支付取消订单。延迟任务没有固定开始时间，它有别于固定周期执行的定时任务。</p>
+  
+    
+    
+      <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>在探讨我们标题的内容之前，我们先来看下java要实现一个简单的延迟任务该如何实现（只考虑单机情况）。延迟任务是指由一个事件触发，经过一段时间触发另一个事件；比如用户开通会员一分钟后给用户发短信，比如下单五分钟内未支付取消订单。延迟任务没有固定开始时间，它有别于固定周期执行的定时任务。</p>
 <p>那么如何实现这种延时执行的任务呢？最简单的方法就是数据库轮询，所有的订单一般存在db或者缓存中，我们通过一个线程或者使用quartz等定时任务周期的扫描订单，找到超时的订单更改状态，这种实现最为简单。但是如果数据量大并且扫描频率高的话会带来严重的性能问题。</p>
 <p>下面我们看下延迟队列delayQueue是如何解决这个问题的。</p>
 <h1 id="delayQueue"><a href="#delayQueue" class="headerlink" title="delayQueue"></a>delayQueue</h1><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div></pre></td><td class="code"><pre><div class="line">public class DelayQueue&lt;E extends Delayed&gt; extends AbstractQueue&lt;E&gt;</div><div class="line">    implements BlockingQueue&lt;E&gt; &#123;</div><div class="line"></div><div class="line">    private final transient ReentrantLock lock = new ReentrantLock();</div><div class="line">    private final PriorityQueue&lt;E&gt; q = new PriorityQueue&lt;E&gt;();</div><div class="line"></div><div class="line">    /**</div><div class="line">     * Thread designated to wait for the element at the head of</div><div class="line">     * the queue.  This variant of the Leader-Follower pattern</div><div class="line">     * (http://www.cs.wustl.edu/~schmidt/POSA/POSA2/) serves to</div><div class="line">     * minimize unnecessary timed waiting.  When a thread becomes</div><div class="line">     * the leader, it waits only for the next delay to elapse, but</div><div class="line">     * other threads await indefinitely.  The leader thread must</div><div class="line">     * signal some other thread before returning from take() or</div><div class="line">     * poll(...), unless some other thread becomes leader in the</div><div class="line">     * interim.  Whenever the head of the queue is replaced with</div><div class="line">     * an element with an earlier expiration time, the leader</div><div class="line">     * field is invalidated by being reset to null, and some</div><div class="line">     * waiting thread, but not necessarily the current leader, is</div><div class="line">     * signalled.  So waiting threads must be prepared to acquire</div><div class="line">     * and lose leadership while waiting.</div><div class="line">     */</div><div class="line">    private Thread leader = null;</div><div class="line"></div><div class="line">    /**</div><div class="line">     * Condition signalled when a newer element becomes available</div><div class="line">     * at the head of the queue or a new thread may need to</div><div class="line">     * become leader.</div><div class="line">     */</div><div class="line">    private final Condition available = lock.newCondition();</div></pre></td></tr></table></figure>
@@ -110,10 +112,11 @@
 <p>netty中已经给出了这种时间轮算法的实现HashedWheelTimer，使用也很简单，只需要通过hashedWheelTimer.newTimeOut(TimerTask task, long delay, TimeUnit unit)方法加入延迟任务。<br>大家有兴趣可以去看一下io.netty.util.HashedWheelTimer的代码，设计相当巧妙。</p>
 <h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>delayQueue的一个主要应用就是延迟任务的调度，不考虑分布式任务情况下，使用延迟队列可以方便地解决；关于延迟任务，我们还给出了一种有效的方案：时间轮。在高负荷情况下，时间轮会比delayQueue延时率更低，因为delayQueue在高负载情况，线程争用更加激烈，并行消费的能力不高。</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/18/concurrent-delayQueue/" data-id="cjez4yjhl0008nb2mzz29v4ln" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/18/concurrent-delayQueue/" data-id="cjf7ze98e000c0t2mzvhc876c" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -165,7 +168,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

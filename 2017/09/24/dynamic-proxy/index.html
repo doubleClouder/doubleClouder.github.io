@@ -92,8 +92,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>   随着aop技术的兴起，动态代理得到越来越广泛的应用。下面我们就来聊一聊在java中实现动态代理都有哪些方式，关于动态代理的介绍可参考博主之前的一篇文章，其中介绍了一下JDK动态代理的使用方法和原理简介<br><a href="http://www.clouder.top/2017/04/12/JDK-Dynamic-Proxy/" target="_blank" rel="external">JDK动态代理</a><br>。动态代理说白了就是再程序运行期间，动态的改变一个类的行为或者生成一个新的类。我们知道JVM通过字节码的二进制信息加载类的，类的初始化过程第一步就是把class文件里所代表的静态存储结构转化为方法区的运行数据结构，当然加载过程只会进行一次。所以要动态的改变类的行为就需要我们遵循JVM的规范生成新的字节码。<br><img src="http://osjt45oaj.bkt.clouddn.com/dynamicproxy.png" alt=""><br>上图是网上别人画的一个动态生成类的原理图，很清晰的展示了动态代理的基本原理，在运行期生成新的字节码，然后类加载器完成类的初始化过程得到新类。</p>
+  
+    
+    
+      <h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>   随着aop技术的兴起，动态代理得到越来越广泛的应用。下面我们就来聊一聊在java中实现动态代理都有哪些方式，关于动态代理的介绍可参考博主之前的一篇文章，其中介绍了一下JDK动态代理的使用方法和原理简介<br><a href="http://www.clouder.top/2017/04/12/JDK-Dynamic-Proxy/" target="_blank" rel="external">JDK动态代理</a><br>。动态代理说白了就是再程序运行期间，动态的改变一个类的行为或者生成一个新的类。我们知道JVM通过字节码的二进制信息加载类的，类的初始化过程第一步就是把class文件里所代表的静态存储结构转化为方法区的运行数据结构，当然加载过程只会进行一次。所以要动态的改变类的行为就需要我们遵循JVM的规范生成新的字节码。<br><img src="http://osjt45oaj.bkt.clouddn.com/dynamicproxy.png" alt=""><br>上图是网上别人画的一个动态生成类的原理图，很清晰的展示了动态代理的基本原理，在运行期生成新的字节码，然后类加载器完成类的初始化过程得到新类。</p>
 <h2 id="ASM"><a href="#ASM" class="headerlink" title="ASM"></a>ASM</h2><p>下面我们来看一下如何在运行时期可以按照Java虚拟机规范对class文件的组织规则生成对应的二进制字节码。其实JDK提供了sun.misc.ProxyGenerator.generateProxyClass(String proxyName,class[] interfaces)底层方法来产生动态代理的字节码。<br>除此之外，但这种实现现在已开源的解决方案有ASM和javaassist。</p>
 <p>ASM是一个Java字节码操控框架。ASM从class文件载入后，可以分析类信息，改变类的行为，也能够根据要求生成新类。它能够以二进制形式修改已有类或者动态生成类。ASM可以直接产生二进制class文件，也可以在类被加载入Java虚拟机之前动态改变类行为。</p>
 <p>ASM在创建class字节码的过程中，操纵是底层JVM的汇编指令，这要求ASM使用者要对class组织结构和JVM汇编指令有一定的了解。对于这些内容可以参考《JAVA虚拟机规范》。asm字节码增强技术主要是用来反射的时候提升性能的，如果单纯用jdk的反射调用，性能是非常低下的，而使用字节码增强技术后反射调用的时间已经基本可以与直接调用相当了。asm是一个轻量级的字节码框架，他的jar包仅几十k，它的核心类有以下几个：</p>
@@ -132,10 +134,11 @@
 <p>上面代码中ca只在字节码的version段触发了一个修改类版本号的动作，剩余部分都直接转发给ClassWriter。</p>
 <p>ClassAdapter是事件的转发者，转化过程形成一条classReader-classAdapter-classWriter的转换链，但一个转换链条没必要是线性的，更复杂的情况是你可以编写一个 ClassVisitor，然后同时转发所有的方法调用给多个 ClassVisitor。<br><img src="http://osjt45oaj.bkt.clouddn.com/asm3.png" alt=""><br>这样需要开发者在整体性能和低耦合之间做一个权衡。上面就是asm的主要组件及大致原理，它实际上相当于做了一个字节码层面的aop,基于观察者模式的事件触发，原理很简单，掌握了它的规则，使用起来也并不难。</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/09/24/dynamic-proxy/" data-id="cjez4yjht000gnb2m9qpbwvp3" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/09/24/dynamic-proxy/" data-id="cjf7ze98l000j0t2m6x4ybw5k" class="article-share-link">Share</a>
       
       
     </footer>
@@ -185,7 +188,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

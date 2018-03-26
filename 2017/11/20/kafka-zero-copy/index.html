@@ -89,8 +89,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>  kafka作为分布式的MQ系统时一个最重要的特性就是高吞吐量、低延迟。kafka每秒可以处理几十万条消息，它的延迟最低只有几毫秒。每个topic可以分多个partition,kafka使用replication机制备份partition数据。Follower partition可以批量的从Leader partition复制数据，而且Leader充分利用磁盘顺序读以及zero copy机制，这样极大的提高复制性能，内部批量写磁盘，大幅减少了Follower与Leader的消息量差。zero copy是nio重要特性之一，它极大提高数据传输效率，本文我们就来分析一下kafka中如果使用这一特性。</p>
+  
+    
+    
+      <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>  kafka作为分布式的MQ系统时一个最重要的特性就是高吞吐量、低延迟。kafka每秒可以处理几十万条消息，它的延迟最低只有几毫秒。每个topic可以分多个partition,kafka使用replication机制备份partition数据。Follower partition可以批量的从Leader partition复制数据，而且Leader充分利用磁盘顺序读以及zero copy机制，这样极大的提高复制性能，内部批量写磁盘，大幅减少了Follower与Leader的消息量差。zero copy是nio重要特性之一，它极大提高数据传输效率，本文我们就来分析一下kafka中如果使用这一特性。</p>
 <h1 id="zero-copy机制"><a href="#zero-copy机制" class="headerlink" title="zero copy机制"></a>zero copy机制</h1><p>  说到zero copy，我们先来看下传统io服务端对客户端的传输。对于读操作：jvm虚拟机一定会发送一个read（）操作系统级别的方法，由此会产生一个上下文的切换，从程序所在的用户空间切换至系统的内核空间，内核空间向磁盘空间请求数据，通过DMA直接内存访问的方式将数据读取到内核空间缓冲区，此时用户空间是无法直接使用的，所以下面会将这份缓冲数据原封不动的拷贝到用户空间，至此read操作就结束。期间有两次上下文的切换，和两次数据的拷贝。对于写操作：将文件读取之后需要发送给远端socket客户端。同样调用系统级别的write方法，需要将上述读到的用户空间的数据原封不动的拷贝到内核上的socket缓冲区，然后DMA 引擎将数据从该缓冲区传到协议引擎，这一次拷贝独立地、异步地发生 。我们可以发现在一次网络IO过程有着不必要的上下文切换和数据拷贝。</p>
 <p> 因此操作系统对与IO的一种优化方式是对于读写操作：用户空间向操作系统发送sendfile()方法，后续的操作只会在内核空间完成。对于所有的读写操作将只会有两次的用户空间和内核空间切换，这种操作称为操作系统意义上的零拷贝。而最佳的实现方式是通过DMA的方式拷贝数据到内核缓冲区，将对应的文件描述符写到socket buffer中，包含了内核的缓冲区的地址和数据长度，并不需要将数据拷贝到socket buffer中，只用存文件描述符。最后协议引擎发送数据的时候，从kernel buffer和socket buffer里面读取数据，对于kernel buffer是真实数据的读取，而对于socket buffer是文件描述符的读取，通过gather操作最终一起发送给客户端。</p>
 <p>在nio中通过java.nio.channels.FileChannel. transferTo()方法支持zerocopy技术。</p>
@@ -122,10 +124,11 @@
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">@Override</div><div class="line">    public long transferFrom(FileChannel fileChannel, long position, long count) throws IOException &#123;</div><div class="line">        return fileChannel.transferTo(position, count, socketChannel);</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
 <h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>  上述就是zero copy的介绍以及kafka中是如何对这一机制的合理应用和异步NIO来极大提高消息消费效率的过程。</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/11/20/kafka-zero-copy/" data-id="cjez4yji3000pnb2m73biaqpr" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/11/20/kafka-zero-copy/" data-id="cjf7ze98v000t0t2m6ys294uc" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kafka/">kafka</a></li></ul>
@@ -177,7 +180,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

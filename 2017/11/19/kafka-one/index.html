@@ -91,8 +91,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>   kafka最初有linkedIn公司研发，2011年开源，12年成为Apache软件基金会顶级开源项目。kafka是一种分布式的MQ系统，越来越来的公司使用kafka作为消息中间件，因为kafka有如下不可比拟的特性：</p>
+  
+    
+    
+      <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>   kafka最初有linkedIn公司研发，2011年开源，12年成为Apache软件基金会顶级开源项目。kafka是一种分布式的MQ系统，越来越来的公司使用kafka作为消息中间件，因为kafka有如下不可比拟的特性：</p>
 <ul>
 <li>强大的处理能力，kafka是基于磁盘的消息存储，并且以顺序读写访问磁盘，避免了随进读写的性能问题，因此，面对海量消息，kafka也可以高效的存储和查询。</li>
 <li>kafka消息分区的方式提高并发能力，而且支持在线分区，易拓展。</li>
@@ -126,10 +128,11 @@
 <p>HW(high watermark)表示消费者拉取消息的高水位，它标记了一个特殊的offset值，意思就是消费者只能拉取HW之前的消息，HW之后的消息对消费者不可见。当ISR集合中全部的follower都拉取的HW指定消息进行同步后，leader会递增HW的值。</p>
 <p>LEO(log end offset)是当前副本的最后一条消息的offset。HW和LEO这两个值都是和ISR集合相关的，引用HW是为了避免消息提交后，follower还未拉取消息，leader跑的过快，此时leader宕机导致的消息丢失问题。但ISR集合有效避免了消息同步复制带来的延时问题，当Followe副本延迟过高时，leader副本被踢出ISR集合，消息已然可以快速提交，当leader宕机时，会选举ISR集合中的follower作为新的leader,这新的leader包含hw之前的所有消息，这样既保证的消息不会丢失，也解决的消息同步带来的影响。</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/11/19/kafka-one/" data-id="cjez4yji1000mnb2m4r1eos2k" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/11/19/kafka-one/" data-id="cjf7ze98n000m0t2mrammejz4" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kafka/">kafka</a></li></ul>
@@ -181,7 +184,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

@@ -89,8 +89,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>我们知道在并发编程中，对共享变量的访问必须是非常小心的，因为少有不慎就可能引起线程安全问题，在保证线程安全的前提下，我们往往需要考虑并发场景的性能问题。但在某些场景下，变量是同一个,但是每个线程只需要使用变量的一个副本，独立变化，这时候也就不用考虑并发问题，这就是threadLocal的作用。</p>
+  
+    
+    
+      <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>我们知道在并发编程中，对共享变量的访问必须是非常小心的，因为少有不慎就可能引起线程安全问题，在保证线程安全的前提下，我们往往需要考虑并发场景的性能问题。但在某些场景下，变量是同一个,但是每个线程只需要使用变量的一个副本，独立变化，这时候也就不用考虑并发问题，这就是threadLocal的作用。</p>
 <h1 id="ThreadLocal"><a href="#ThreadLocal" class="headerlink" title="ThreadLocal"></a>ThreadLocal</h1><p>threadLocal经典的应用场景是用来解决数据库连接、session管理。<br>我们先看这样一个数据库连接的例子：</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div></pre></td><td class="code"><pre><div class="line">class ConnectionManager &#123;</div><div class="line">     </div><div class="line">    private static Connection connect = null;</div><div class="line">     </div><div class="line">    public static Connection openConnection() &#123;</div><div class="line">        if(connect == null)&#123;</div><div class="line">            connect = DriverManager.getConnection();</div><div class="line">        &#125;</div><div class="line">        return connect;</div><div class="line">    &#125;</div><div class="line">     </div><div class="line">    public static void closeConnection() &#123;</div><div class="line">        if(connect!=null)</div><div class="line">            connect.close();</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
 <p>这是一个数据连接管理类，很明显在并发情况有线程安全问题：可能出现多个线程同时调用openConnection从而创建多个连接，导致连接泄露；再有一个线程使用连接时，另一个线程调用了close方法，导致连接失效。实际上数据库连接并不需要是单例的，每个线程只要能独立维护自己的连接就可以，但是将OpenConnection方法改成每次调用都创建新的连接，会造成连接频繁创建销毁，服务端压力过重。</p>
@@ -108,10 +110,11 @@
 <p> 计算hashcode是共享一个AtomicInteger的nexthashcode 从0开始以一个间隔自增，然后根据hashcode &amp;(tablelength-1)定位桶。ThreadLocalMap中发生hash冲突时，不是像HashMap这样用链表来解决冲突，而是是将索引++，放到下一个索引处来解决冲突。</p>
 <p> ThreadLocalMap的回收随着线程销毁而回收。一旦线程退出，Thread对象被回收，map中的value也就被回收，但是线程池中的线程永远不会被回收，只会阻塞，如果队列中的某个任务向ThreadLocalput了一个对象，但任务结束后并未清空，那么这个对象在ThreadLocal的下一次put或clear前永远不会被GC；这种情况下，假如线程池有200个线程，那么一个ThreadLocal最多可能造成200个对象的内存泄露。</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/13/concurrent2-threadLocal/" data-id="cjez4yjhq000bnb2mohsu282g" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/13/concurrent2-threadLocal/" data-id="cjf7ze98600050t2mjdh3az3x" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -163,7 +166,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

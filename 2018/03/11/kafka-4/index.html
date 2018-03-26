@@ -91,8 +91,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>在上篇的kafkaProducer分析中，我们知道kafka中的nio模型并没有使性能和易用性上都非常优秀的netty框架，而是自己封装了nio的调用。kafka client端的IO操作是通过NetworkClient来完成，NetworkClient底层封装了java NIO。</p>
+  
+    
+    
+      <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>在上篇的kafkaProducer分析中，我们知道kafka中的nio模型并没有使性能和易用性上都非常优秀的netty框架，而是自己封装了nio的调用。kafka client端的IO操作是通过NetworkClient来完成，NetworkClient底层封装了java NIO。</p>
 <h1 id="producer网络模型"><a href="#producer网络模型" class="headerlink" title="producer网络模型"></a>producer网络模型</h1><p>上一篇内容中也提到，kafkaProducer线程会把消息放入本地队列，真正的IO操作是通过sender线程来完成的，sender作为最上层的接口，调用的是NetworkClient,NetworkClient调用Selector。</p>
 <p><img src="http://osjt45oaj.bkt.clouddn.com/kafka_nio.png" alt=""><br>上面展示了kafkaProducer网络模型的层次划分，从上往下依次为：最上层Sender调用层作为整个体系的入口，下面是Network接口层、Network层以及nio层。Sender调用NetworkClient，NetworkClient调用 Selector，而Selector底层封装了Java NIO的相关接口。</p>
 <h2 id="Network层"><a href="#Network层" class="headerlink" title="Network层"></a>Network层</h2><p>NetworkClient作为网络层接口，真正的NIO封装是在NetWork层实现。下面我们看一下网络层的组件构成。</p>
@@ -146,10 +148,11 @@
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line">public boolean ready(Node node, long now) &#123;</div><div class="line">        if (node.isEmpty())</div><div class="line">            throw new IllegalArgumentException(&quot;Cannot connect to empty node &quot; + node);</div><div class="line"></div><div class="line">        if (isReady(node, now))</div><div class="line">            return true;</div><div class="line"></div><div class="line">        if (connectionStates.canConnect(node.idString(), now))</div><div class="line">            // if we are interested in sending to a node and we don&apos;t have a connection to it, initiate one</div><div class="line">            initiateConnect(node, now);</div><div class="line"></div><div class="line">        return false;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
 <p>这里需要注意的是poll检查到连接断了返回给上层sender，sender只是发起连接，不会等到连接建立好了，再执行下面的代码。而已在poll之后，判断连接是否建立；在下1次或者下几次poll之前，可能连接才会建立好，ready才会返回true.</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2018/03/11/kafka-4/" data-id="cjez4yjhz000knb2m6g1vm1g9" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2018/03/11/kafka-4/" data-id="cjf7ze98r000r0t2mkfsc4hcc" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kafka/">kafka</a></li></ul>
@@ -201,7 +204,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

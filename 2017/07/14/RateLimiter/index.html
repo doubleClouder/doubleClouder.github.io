@@ -92,8 +92,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="描述"><a href="#描述" class="headerlink" title="描述"></a>描述</h1><p>   对于高并发的系统而言，缓存、限流和降级是保证服务可用的三大利器。由于缓存的性能越来越高，对于系统能抗住高并发流量的作用自然不必多说；熔断和降级是保证服务可用的最后一道屏障，它是在下游服务故障或者系统负荷过高时不得不做的处理，通过一些mock的处理让服务暂时看起来可用，待高峰过后重新恢复。但在有些场景下，可以用来控制服务的请求速率，如双十一和12306的限流。</p>
+  
+    
+    
+      <h1 id="描述"><a href="#描述" class="headerlink" title="描述"></a>描述</h1><p>   对于高并发的系统而言，缓存、限流和降级是保证服务可用的三大利器。由于缓存的性能越来越高，对于系统能抗住高并发流量的作用自然不必多说；熔断和降级是保证服务可用的最后一道屏障，它是在下游服务故障或者系统负荷过高时不得不做的处理，通过一些mock的处理让服务暂时看起来可用，待高峰过后重新恢复。但在有些场景下，可以用来控制服务的请求速率，如双十一和12306的限流。</p>
 <h1 id="限流算法"><a href="#限流算法" class="headerlink" title="限流算法"></a>限流算法</h1><p>  常见的限流算法有漏桶算法和令牌桶算法。<br>  <img src="http://osjt45oaj.bkt.clouddn.com/leaky_bucket.GIF" alt=""><br>上图可以直观的表现出漏桶算法的思想，请求可以看成水流，以一定速率的出水进入漏桶中，然后漏桶以一定的速率出水，当水流入速度过大会溢出，漏桶算法会强行限制数据的传输速率。突发流量会被限制成一个稳定的流量，如果漏桶溢出，那么数据包或者请求就会被丢弃。漏桶算法的缺陷是不能有效利用系统资源，即使不存在资源冲突，漏桶仍然已恒定的速率流出，故不能应对突发特性的流量。<br><img src="http://osjt45oaj.bkt.clouddn.com/token_bucket.JPG" alt=""><br>令牌桶算法的原理是系统已恒定的速率往桶内放入令牌，请求过来需要先从桶内取得令牌然后请求被处理，如果没取到则拒绝服务。假设限制速率2r/s即一秒2个往桶中放入令牌，桶的容量为n,当一个a个字节的数据包到达时，将从桶中删除a个令牌，如果当前桶的令牌数小于a，则本次请求被限流；令牌桶的一个优点在于可以按需改变放入令牌的速率来应对突发性的流量。</p>
 <h1 id="RateLimiter"><a href="#RateLimiter" class="headerlink" title="RateLimiter"></a>RateLimiter</h1><p>RateLimiter出自大名鼎鼎的guava包，它是令牌桶算法的一种实现。RateLimiter经常用于限制对一些物理资源或者逻辑资源的访问速率。与Semaphore 相比，Semaphore 限制了并发访问的数量而不是使用速率。<br>考虑下面的场景：我们需要执行一堆任务，但我们希望任务的提交速率限制在最多1s一个。我们利用RateLimiter来实现。</p>
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">final RateLimiter rateLimiter = RateLimiter.create(1);</div><div class="line">Executor threadPool = Excutors.newFixedThreadPool(10);    </div><div class="line"> void submitTasks(List tasks) &#123;</div><div class="line">        for (Runnable task : tasks) &#123;</div><div class="line">            rateLimiter.acquire(); // 需要等待拿到令牌</div><div class="line">            executor.execute(task);</div><div class="line">        &#125;</div><div class="line">  &#125;</div></pre></td></tr></table></figure>
@@ -117,10 +119,11 @@
 <p>  reserveNextTicket方法计算出的时间也是请求需要等待的时间。举个例子，假设在nowMicros=3这个时间点来了一个请求，需要5个令牌，当前时间点令牌数为2，假设计算出waitMicro=3,则nexFreeTicketMicors=3,当前storedPermits=-2;该请求需要等待3s后的一致性。再假设过了1s另一请求到来需要1个令牌，则根据nexFreeTicketMicors和storedPermits继续计算waitMicro获取阻塞时间。</p>
 <p>  总结起来，RateLimiter并不是真的一直往某个地方放令牌，而是在每次acquire时候根据当前令牌数和下次获取令牌算去本次请求是否能执行，如果要等需要等待多长时间，设计上非常巧妙。当第一次调用accquire()的时候，resync会被执行，然后在accquire()中将nextFreeTicketMicros设置为当前时间。但是，还可以请求的令牌数和当前存储的令牌数进行比较。如果请求的令牌数很大，则会计算出生成这些多余的令牌需要的时间，并加在nextFreeTicketMicros上，从而保证下次调用accquire()的时候，根据nextFreeTicketMicros和当时的nowMicros相减，若&gt;0，则需要等到对应的时间。也就能应对流量的突增情况了。 </p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/14/RateLimiter/" data-id="cjez4yjha0001nb2m07rmlc3k" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/14/RateLimiter/" data-id="cjf7ze97z00030t2ma477eyo2" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/guava/">guava</a></li></ul>
@@ -172,7 +175,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

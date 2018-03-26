@@ -89,8 +89,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <p>大家都知道redis相较同类产品memcache而言有着丰富的数据类型,这里我们稍微说一下redis中的list数据类型，list的容量是2^32-1个元素，它存储的是链表结构，链表的属性是不管整个链表有多大，它的头尾操作是非常快的，这就符合一个消息队列的特性，简单意义上的消息队列就是生产者从对头插数据，消费者从队尾取数据，所以我们可以用redis中的list来实现一个mq。但是要使用mq，用市面上成熟的消息中间件产品岂不是更好？如rabbitmq、kafka等，当然，如rabbitmq、kafka等，当然如果要保证高可用高性能高吞吐量的消息队列，自然是要考虑使用此类成熟的中间件，这也不在本文描述范畴。但redis作为消息队列的好处是可以对消息的收发做到一个灵活的控制，添加一些自定义的行为，比如给消息定义优先级，所以在一定的业务场景下，将redis作为消息队列不失为一种好的选择。那么到底要如何实现呢。下面我们就演示一下在spring中如何整合redis消息队列。</p>
+  
+    
+    
+      <p>大家都知道redis相较同类产品memcache而言有着丰富的数据类型,这里我们稍微说一下redis中的list数据类型，list的容量是2^32-1个元素，它存储的是链表结构，链表的属性是不管整个链表有多大，它的头尾操作是非常快的，这就符合一个消息队列的特性，简单意义上的消息队列就是生产者从对头插数据，消费者从队尾取数据，所以我们可以用redis中的list来实现一个mq。但是要使用mq，用市面上成熟的消息中间件产品岂不是更好？如rabbitmq、kafka等，当然，如rabbitmq、kafka等，当然如果要保证高可用高性能高吞吐量的消息队列，自然是要考虑使用此类成熟的中间件，这也不在本文描述范畴。但redis作为消息队列的好处是可以对消息的收发做到一个灵活的控制，添加一些自定义的行为，比如给消息定义优先级，所以在一定的业务场景下，将redis作为消息队列不失为一种好的选择。那么到底要如何实现呢。下面我们就演示一下在spring中如何整合redis消息队列。</p>
 <h3 id="生产者"><a href="#生产者" class="headerlink" title="生产者"></a>生产者</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line">public class RedisMq &#123;</div><div class="line">    @Resource</div><div class="line">    protected RedisTemplate jedisTemplate;</div><div class="line"></div><div class="line">    public void sendToRedis(final String msg) &#123;</div><div class="line">        String listName = &quot;xxx&quot;;</div><div class="line">        jedisTemplate.opsForList().rightPush(listName, mag);</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
 <p>生产者的代码很简单，就是往redis的指定list的一端push一条消息。下面就看一下消费者一端如何想spring整合其他mq那样监听队列。</p>
 <h3 id="消费者"><a href="#消费者" class="headerlink" title="消费者"></a>消费者</h3><p>初始化队列类</p>
@@ -103,10 +105,11 @@
 <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div></pre></td><td class="code"><pre><div class="line">&lt;bean id=&quot;initializeQueue&quot; class=&quot;com.clouder.redis.InitializeQueue&quot;&gt;</div><div class="line">        &lt;property name=&quot;listener&quot; ref=&quot;redisQueueListener&quot;&gt;&lt;/property&gt;</div><div class="line">        &lt;property name=&quot;redisTemplate&quot; ref=&quot;redisTemplate&quot;&gt;&lt;/property&gt;</div><div class="line">    &lt;/bean&gt;</div></pre></td></tr></table></figure>
 <p>上述就是spring中整合redis list实现消息队列的过程。总结一下，创建一个队列初始化类注入spring上下文中随spring启动创建实例，初始化类中根据要监听的队列名创建队列实例，RedisQueue实例中启动后台线程从redis list中取出消息调用redis监听器的onMessage方法。</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/23/redis-list/" data-id="cjez4yjif0010nb2mcp2mdlqb" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/23/redis-list/" data-id="cjf7ze99900160t2m2fz42jt8" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/redis/">redis</a></li></ul>
@@ -158,7 +161,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

@@ -92,8 +92,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <p>如果现在要将应用中所有的Error级别日志收集到数据库中，你能想到什么办法？比较自然的想法是：1. 在所有输出Error日志的地方增加插入数据库操作。2.开辟程序扫描日志文件，遇到Error日志记录入库。这两种方案前者对代码侵入很大；后者工作量较大，而且无法做到实时同步。那么有没有更简便优雅的方式呢？答案就是本文的标题。现在市面上流行的日志框架主要为log4j和logback,二者实现过程基本相同，我们以Logback为例，看如何实现自定义Appender，logback大致类似。<br>Log4j和Logback主要有三个组件：</p>
+  
+    
+    
+      <p>如果现在要将应用中所有的Error级别日志收集到数据库中，你能想到什么办法？比较自然的想法是：1. 在所有输出Error日志的地方增加插入数据库操作。2.开辟程序扫描日志文件，遇到Error日志记录入库。这两种方案前者对代码侵入很大；后者工作量较大，而且无法做到实时同步。那么有没有更简便优雅的方式呢？答案就是本文的标题。现在市面上流行的日志框架主要为log4j和logback,二者实现过程基本相同，我们以Logback为例，看如何实现自定义Appender，logback大致类似。<br>Log4j和Logback主要有三个组件：</p>
 <ul>
 <li>Logger:      负责客户端代码调用，执行error,debug,info,warn等方法。</li>
 <li>Appender:  负责日志的输出，Log4j和Logback都实现了多种不同目标的输出方式，常见的有控制台输出，日志文件输出，socket输出等。</li>
@@ -104,10 +106,11 @@
 <p>   稍微了解了logback的这种结构，那么自定义Appender的问题就迎刃而解了，我们直接上代码。</p>
 <p> <img src="http://osjt45oaj.bkt.clouddn.com/124.png" alt=""><br> 我们只要在应用启动的时候注入这样一个类，并调用addLogbackAppender()方法，就可以为所有的logger加上一个自定义appender,这样在应用每次输出Error级别日志，就忘数据库中记录。当然并不一定是Error日志，具体的逻辑根据需求定义在getCustomizedLogbackAppender中就万事大吉。</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cjez4yjhm0009nb2m33pzqzej" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/03/16/customize-appender/" data-id="cjf7ze98g000e0t2ms2ilu6ye" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -154,7 +157,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

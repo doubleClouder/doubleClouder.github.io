@@ -89,8 +89,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>对kafka Producer有了一定认识之后，我们继续聊一聊kafka客户端的另一部分Consumer端有关内容，当然仍然基于新的java版本的KafkaConsumer进行分析，本篇内容分析一下kafka如何对同一个消费组里多个consumer进行管理的，消费者之前是如何协调的。</p>
+  
+    
+    
+      <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>对kafka Producer有了一定认识之后，我们继续聊一聊kafka客户端的另一部分Consumer端有关内容，当然仍然基于新的java版本的KafkaConsumer进行分析，本篇内容分析一下kafka如何对同一个消费组里多个consumer进行管理的，消费者之前是如何协调的。</p>
 <h1 id="rebalance机制"><a href="#rebalance机制" class="headerlink" title="rebalance机制"></a>rebalance机制</h1><p>我们知道kafka保证同一消费组中的每个consumer能够消费一个或者多个特定的partition数据，一个partition的数据只能被一个consumer消费；因为每个partition里的消息是有序的，这样可以保证partition中的数据被同一个消费者有序消费；同时consumer只需要和自己消费的partition的broker通信就可以，减少开销。</p>
 <p>在kafka中消费者的分区分配策略默认有两种：range和RoundRobin。<br>假设一个consumer group中有三个消费者C0 C1 C2,要消费的topic包含10个partition p0-p19; Range的分配策略是partition个数除以消费者个数，剩下的从头分配 10/3 = 3 则C0分配 0，1，2，3；C1分配4，5，6；C2分配7，8，9；RoundRobin的分配策略则是按Partion的hashCode进行排序，同时对消费者进行排序，然后按hashCode取模进行分配。</p>
 <p>consumer rebalance的触发条件：</p>
@@ -137,10 +139,11 @@
 <p>参考：</p>
 <p><a href="http://zqhxuyuan.github.io/2016/02/22/2016-02-22-Kafka-Consumer-new/" target="_blank" rel="external">Kafka源码分析 KafkaConsumer（翻译和注释）</a></p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2018/03/12/kafka-consumer1/" data-id="cjez4yjhr000dnb2mlz8tdwpn" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2018/03/12/kafka-consumer1/" data-id="cjf7ze98p000o0t2m4op51pus" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kafka/">kafka</a></li></ul>
@@ -183,7 +186,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

@@ -89,35 +89,20 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
+  
+    
+    
+      <p>  关于jvm中对象是如何分配内存的，在<a href="https://doubleclouder.github.io/2017/07/03/new-object-1/" target="_blank" rel="external">jvm源码分析之内存分配</a>中已经做过分析，现在我们就来讨论一下内存分配之后是如何布局的，简单的讲就是分配的内存区域里面到底存的是什么。</p>
       
-        <p>  关于jvm中对象是如何分配内存的，在<a href="https://doubleclouder.github.io/2017/07/03/new-object-1/" target="_blank" rel="external">jvm源码分析之内存分配</a>中已经做过分析，现在我们就来讨论一下内存分配之后是如何布局的，简单的讲就是分配的内存区域里面到底存的是什么。</p>
-<p> <img src="http://osjt45oaj.bkt.clouddn.com/struct1.png" alt=""><br> 上图引用自《java虚拟机精讲》。图中可以一目了然的看出对象的内存布局。存储对象实例信息的内存布局主要有两部分构成：对象头和实例数据以及padding区域。</p>
-<ul>
-<li>对象头：分成两部分Mark Word和元数据指针。Mark Word主要用于存储对象运行时的数据信息。比如HashCode、GC分代年龄、锁状态标志、线程持有的锁、偏向线程ID、偏向时间戳等。而元数据指针则是指向方法区中目标类的类型信息，通过元数据指针可以指明当年对象是哪个类的实例。</li>
-<li>实例数据：主要用于存储定义在当前对象中的各种类型的字段信息（包括派生于超类的字段）。</li>
-<li>padding区：仅仅起着占位符的作用，jvm要求对象大小必须是8的倍数，若不是需要填充补齐，它不是必要存在的。</li>
-</ul>
-<p>当理解了Java对象在内存中如何存储之后，接下来我们看下jvm中是如何表达java类和对象实例的，底层jvm需要一套完整的内部对象表示机制，这种机制称为OOP-Klass模型，OOP(Ordinay Object Pionter)对象指针用于描述实例对象，而Klass则是用于描述对象实例的类型，对应上层java中的Class(之所以命名为Klass，是因为Class是c++中的关键字)。OOP与Klass是两个相互独立又彼此关联的模块。在JVM中对象头由OOP对象instanceOopDesc来表示，对象头中元数据指针锁指向的当前对象的目标类型是由Klass中的instanceKlass表示。栈中本地变量表中的引用变量指向堆上InstanceOopDesc对象，而instanceOopDesc对象持有只有instanceKlass的地址指针，如下图所示：</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/struct2.png" alt=""><br>下面重点分析一下mark word和实例数据部分。</p>
-<h1 id="Mark-Word"><a href="#Mark-Word" class="headerlink" title="Mark Word"></a>Mark Word</h1><p>-<br>Mark Word具有非固定的数据结构，以便在极小的空间内存储尽量多的信息。JVM可以通过Java对象的元数据确定对象长度，但是对于数组不行。如果对象是一个数组，对象头必须有一块儿用于记录数组长度的数据，这么做的目的是gc扫描时会根据对象头直接确定下一个对象的地址，不需要扫描整个对象空间。对于对象头长度而言，32bit虚拟机一定是32bit+32bit，即8字节；64bit虚拟机若没有开启了压缩指针，是64bit+64bit，即16字节，若开启了压缩指针，是64bit+32bit，即12字节（不是8bit的倍数）<br>-XX:+UseCompressedOops：开启压缩指针。</p>
-<h1 id="实例数据"><a href="#实例数据" class="headerlink" title="实例数据"></a>实例数据</h1><p>-<br>上面讲到实例数据部分存的是对象的各种类型的字段信息，包括基本类型和引用类型。我们在定义一个java类的时候不会去考虑字段的顺序，例如类A</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">public class A&#123;</div><div class="line">   double x;</div><div class="line">   float y;</div><div class="line">   int z;</div><div class="line">   long a;</div><div class="line">   String s;</div><div class="line">   ... </div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>但是jvm在创建对象的时候会按照一定的顺序去排列这些字段，顺序如下：</p>
-<ol>
-<li>double/long       8byte</li>
-<li>float/int         4byte</li>
-<li>short/char        2byte</li>
-<li>byte/boolean      1byte</li>
-<li>oop        4/8byte</li>
-</ol>
-<p>jvm默认以这种顺序去排列字段，这样做的原因是cpu读取内存时是按寄存器的大小单位（64位机器为64bit）载入的，如果载入的数据横跨两个64bit,要操作该数据的话必须两次读取加上组合移位，会产生效率问题，甚至会引发异常，所以必须要求数据对齐,同时也可以节省内存。<br>这种顺序也是可以更改的。通过指定jvm参数-XX:fIeldsAllocationStyle=mode，缺省状态下，jvm默认mode=1,mode还可以为0和2。为0时oop位于前面；mode=2时会将当前类和超类的oop字段放在一起，mode为0或1时会将派生类和超类的基本按照上述规则排在一起，oop类型位置不变，mode=2则也会将oop类型放在一起。按照jvm代码的注释可能更清晰</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">mode=0,Fields order: oops, longs/doubles, ints, shorts/chars, bytes, padded fields</div><div class="line">mode=1:Fields order: longs/doubles, ints, shorts/chars, bytes, oops, padded fields</div><div class="line">mode=2:Fields allocation: oops fields in super and sub classes are together.</div></pre></td></tr></table></figure>
-<p>相当mode=0和1，mode=2的优势是可以减少gc时创建的OopMapBlock对象的数量。OopMapBlock结构如下：<br><img src="http://osjt45oaj.bkt.clouddn.com/struct3.png" alt=""><br>我们都知道gc时需要从gc root对象开始定位所有的存活的对象，那么就需要根据引用链记录对象指针，而OopMapBlock对象就是用来存放对象指针的，它有两个字段offset(偏移量)和对象个数(count),如果oop是连续的，对于同一个对象只需要一个OopMapBlock对象记录oop开始位置的便宜量和oop的个数就ok,否则需要两个oopMapBlock。另外一个好处是连续的对象区域使得cache line的使用效率更高. 试想如果父对象和子对象的对象引用区域不连续, 而中间插入了原始类型字段的话, 那么在做GC对象扫描时, 很可能需要跨cache line读取才能完成扫描.</p>
-
+        <p class="article-more-link">
+          <a href="/2017/07/04/obejct-struct/#more">Read More</a>
+        </p>
       
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cjez4yjib000vnb2mn5js86i5" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/04/obejct-struct/" data-id="cjf7ze99500130t2mgx6m7dn2" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/jvm/">jvm</a></li></ul>
@@ -150,45 +135,20 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
+  
+    
+    
+      <h1 id="new-Object"><a href="#new-Object" class="headerlink" title="new Object"></a>new Object</h1><p>  java程序猿找不到对象怎么办，最简单的办法:new一个。（扎心了，对象还是要自己找。。）。new关键字大家都很熟悉，我们使用new来实例化任何我们需要的对象。Object object = new Object()一行代码对象创建完成，但是大家是否有了解过这行代码背后都做了些什么？其实底层jvm做了一系列非常复杂的工作，现在我们就来扒一扒。</p>
       
-        <h1 id="new-Object"><a href="#new-Object" class="headerlink" title="new Object"></a>new Object</h1><p>  java程序猿找不到对象怎么办，最简单的办法:new一个。（扎心了，对象还是要自己找。。）。new关键字大家都很熟悉，我们使用new来实例化任何我们需要的对象。Object object = new Object()一行代码对象创建完成，但是大家是否有了解过这行代码背后都做了些什么？其实底层jvm做了一系列非常复杂的工作，现在我们就来扒一扒。</p>
-<p>  创建一个java对象需要三步：声明引用变量、实例化、初始化对象实例。实例化是真正创建一个java对象，分配内存并返回指向改内存的引用。初始化是指调用构造方法，对类的实例数据赋初值。对于Object object = new Object()可以分成两个部分，”Object obj”这部分的语义作用于Java栈中，会在栈帧中的本地变量表中创建一个引用类型的数据obj,而”new Object()”这部分的语义将会作用于java堆中，形成一块存储Object类型的所有实例数据值的内存区域（当然严格的来讲，对象也是可以在栈上分配内存的，jvm中可以借助对象的逃逸分析来决定一些小对象是否在可以进行栈上分配，这样做的目的是为了降低GC回收频率以及提升GC回收效率，但这毕竟只是一种jvm调优的辅助手段，绝大多数对象实例只能在java堆区分配存储）。下面我们就通过源码看一下对象的内存到底是如何分配的。</p>
- <figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div></pre></td><td class="code"><pre><div class="line">class AAA&#123;</div><div class="line">  public static void main(string[] args)&#123;</div><div class="line">    Object = new Object()</div><div class="line">  &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p> 利用javap命令反编译上面的代码可以得到：</p>
-<p> <img src="http://osjt45oaj.bkt.clouddn.com/image.jpg" alt="photo"></p>
-<p> 可以看到java中new关键字对应底层jvm中的new指令，下面我们就来看一下jvm中new指令的实现：</p>
-<p> <img src="http://osjt45oaj.bkt.clouddn.com/image2.png" alt="photo"></p>
-<p>首先会尝试去常量池的对应位置找指定类（这里是Object类）的instanceKlass对象（可了解jvm中定义类与对象关系的oop-klass模型）。如果找到说明类已经被加载，否则触发类的初始化过程，这里不再详解，我们直接看对象内存是如何分配的，在allocate_instance方法中。</p>
-<p>在讲内存分配过程之前，我们先来了解下内存的几种方式，如果不考虑jvm借助逃逸分析来进行栈上分配，绝大多数对象都是在堆上进行分配的，这点毫无疑问。内存分配的方式如下：</p>
-<ul>
-<li>指针碰撞：如果内存是规整有序的，分配对象内存时只需要移动指针来划分内存区域。</li>
-<li>空闲列表：如果内存不是规整的，则记录下空闲内存的地址，申请内存时从列表上获取内存地址。</li>
-<li>快速分配：上述分配方式在多线程环境下，必须让线程分配内存保持同步（通过先cas,后加锁的方式），这样导致内存分配的效率很低，为了解决线程同步的问题，jvm引入了tlab这种快速分配的方式。</li>
-</ul>
-<p>先来简单介绍下tlab(threadLocalAllocationBuffer)。tlab是线程在eden上划分的一块私有区域，通过start、end两个指针卡出一块内存空间，这块空间只能由当前线程在上面进行对象内存分配，由一个top指针在这块卡出的区域移动，类似于指针碰撞。tlab并不是线程私有内存，它是卡出一块空间只让当前线程进行内存分配，这块空间是eden的空间，上面分配的对象还是线程共享的。了解了这样一个概念，我们就继续看下内存的代码，入口是上面提到的allocate_instance.</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new1.png" alt="allocate"></p>
-<p>方法中会先判断当前类是否实现了finalize方法，如果有则会创建finalizer对象。我们直接跟内存分配的代码：</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new2.png" alt=""></p>
-<p>继续看Common_mem_allocate_init方法最终会调到CollectedHeap::common_mem_allocate_noinit方法</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new3.png" alt=""></p>
-<p>这里会看到如果使用tlab，会尝试去tlab上分配，jvm默认开启tlab,jvm中线程run方法会首先去初始化一个tlab。如果不使用tlab，则在直接在堆上分配，这个后面再说，我们先看下tlab上分配。</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new4.png" alt=""></p>
-<p>这里会首先尝试在tlab上分配，如果分配失败则进行慢速分配。</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new5.png" alt=""></p>
-<p>tlab有个最大可浪费空间的字段，如果当前tlab剩余空间大于要分配的空间，则直接分配，否则会看剩余空间是否大于可浪费空间，若是则直接在eden上分配对象空间，若否则重新丢弃当前tlab，重新在堆上开辟一块tlab,这就是上面提到的慢速分配过程。代码如下：</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new6.png" alt=""></p>
-<p>本质上在堆上分配对象空间和分配tlab是一样的，这块内存都是临时的下面看一下堆是如何分配tlab的。</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new7.png" alt=""></p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new8.png" alt=""><br>首先会确保当前JVM没有进行gc,如果正在gc则不进行分配。首先通过自旋+cas这种活锁的方式进行原子分配，上面代码中的par_allocate会调用jvm的cas指令如下：<br><img src="http://osjt45oaj.bkt.clouddn.com/new9.png" alt=""></p>
-<p>如果无锁的方式分配失败，则继续执行mem_allocate_work下面的代码,无锁分配失败后则以加锁的方式继续尝试分配</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/new10.png" alt=""><br><img src="http://osjt45oaj.bkt.clouddn.com/new11.png" alt=""></p>
-<p>first_only代表是否只在新生代分配，根据上面的代码可以看出大的对象这个值为false，在attempt_allocation方法中，会遍历所有的内存代尝试分配内存，如果first_only为true的话则只在新生代进行分配，如果分配失败直接返回。<br>继续看mem_allocate_work下面的代码：<br>如果上面分配内存仍然失败，则继续执行。<br><img src="http://osjt45oaj.bkt.clouddn.com/new12.png" alt=""><br>1、gc_locker::is_active_and_needs_gc()为真时，表示当前其它线程已经触发了gc；<br>2、如果is_tlab为真，表示当前线程正在为局部分配缓冲区申请内存；<br>3、如果!gch-&gt;is_maximal_no_gc()为真，表示新生代或老年代可以进行内存扩展，扩展完成后，再次尝试从各代中进行分配expand_heap_and_allocate方法。<br>4.如果拓展后分配仍然不成功，则继续往下执行<br><img src="http://osjt45oaj.bkt.clouddn.com/new13.png" alt=""><br>如果当前线程没有位于jni的临界区，将释放Java堆的互斥锁，以使得请求gc的线程可以进行gc操作，等所有本地线程退出临界区和gc完成后，将继续循环尝试分配内存。<br>如果还是分配不成功，则执行GC操作.<br><img src="http://osjt45oaj.bkt.clouddn.com/new14.png" alt=""></p>
-<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>上述就是jvm中关于对象分配内存的整个流程，jvm会优先以快速分配的方式在tlab上进行，如果分配失败进行堆上分配或者执行tlab的refill过程，期间还有gc的参与，最终是为了给对象在堆上分配一块内存。</p>
-
+        <p class="article-more-link">
+          <a href="/2017/07/03/new-object-1/#more">Read More</a>
+        </p>
       
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjez4yjie000znb2mkmplp8q2" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/07/03/new-object-1/" data-id="cjf7ze990000x0t2mu57y8a7x" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java/">java</a></li></ul>
@@ -221,84 +181,20 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
+  
+    
+    
+      <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>LMAX是一种新型零售金融交易平台,它能够以很低的延迟产生大量交易。它能够在一个线程里每秒处理六百万的订单，业务逻辑处理完全运行在内存中，而它的核心就是Disruptor。Disruptor是开源的并发框架，它能够在无锁的情况下实现网络的Queue并发操作。</p>
       
-        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>LMAX是一种新型零售金融交易平台,它能够以很低的延迟产生大量交易。它能够在一个线程里每秒处理六百万的订单，业务逻辑处理完全运行在内存中，而它的核心就是Disruptor。Disruptor是开源的并发框架，它能够在无锁的情况下实现网络的Queue并发操作。</p>
-<h1 id="Disruptor设计原则"><a href="#Disruptor设计原则" class="headerlink" title="Disruptor设计原则"></a>Disruptor设计原则</h1><ul>
-<li>尽量保持单一写</li>
-<li>避免使用锁，无锁化（volatile + CAS）</li>
-<li>避免伪共享</li>
-</ul>
-<h2 id="为什么要无锁"><a href="#为什么要无锁" class="headerlink" title="为什么要无锁"></a>为什么要无锁</h2><p>在多线程下，往往涉及对资源的共享，比如内存、文件、IO等，为了共享资源访问时的安全，我们需要对共享资源加锁，加锁保证了原子性和内存可见性；（原子性保证资源的争用更新；可见性保证某一线程对内存的修改对其他线程是可见的。）但是锁带来一个不可忽视的问题——性能问题，线程因为竞争不到锁而被挂起，获取到锁线程恢复。这个过程会带来很大的开销，同时cpu上下文的切换，可能会造成缓存和指令的丢失。在多线程情况下，加锁的开销往往比无锁多了好几个数量级。</p>
-<p>在某些情况，我们通常会考虑用CAS替代锁从而避免锁带来的巨大开销，相对锁而言，CAS是高效的，因为它没有线程上下文切换。但是如果竟态条件一直不能满足，线程就会不停的自旋，这同样会带来性能开销。</p>
-<h2 id="避免伪共享"><a href="#避免伪共享" class="headerlink" title="避免伪共享"></a>避免伪共享</h2><p>在之前的ArrayBlockingQueue分析中，我们会发现它的三个成员takeIndex,putTndex,count很容易放入一个缓存行，这就会带来伪共享问题，关于伪共享的问题网上的分析已经非常之多，这里不多描述。<br><img src="http://osjt45oaj.bkt.clouddn.com/falseSharing.png" alt=""><br>如上图所示，当生产者线程put一个元素到ArrayBlockingQueue时，putIndex会修改，从而导致消费者线程的缓存中的缓存行无效，需要从主存中重新读取，这就伪共享。通常的解决办法是填充缓存行，让共享的变量位于不通的cache line，从而避免伪共享。</p>
-<h1 id="原理简介"><a href="#原理简介" class="headerlink" title="原理简介"></a>原理简介</h1><p><img src="http://osjt45oaj.bkt.clouddn.com/disruptor.png" alt=""></p>
-<p>先来看下disruptor中的一些核心组件：</p>
-<ul>
-<li><p>RingBuffer</p>
-<p>环形缓冲区，它是disruptor的核心容器。本质上还是一个数组，通过取余操作，形成一个环形数组；初始化RingBuffer时，所有数组元素均被初始化，后续只会更新数组元素；RingBuffer本身并没有锁，生产者和消费者申请操作位置后直接在数据上操作一个生产者时候，申请位置也不用锁<br>多个生产者时候，通过CAS控制；</p>
-</li>
-<li><p>Sequence  </p>
-<p>通过顺序递增的序号来编号管理通过其进行交换的数据（事件），对数据(事件)的处理过程总是沿着序号逐个递增处理。一个 Sequence 用于跟踪标识某个特定的事件处理者( RingBuffer/Consumer )的处理进度。虽然一个 AtomicLong 也可以用于标识进度，但定义 Sequence 来负责该问题还有另一个目的，那就是防止不同的 Sequence 之间的CPU缓存伪共享(Flase Sharing)问题。</p>
-</li>
-<li><p>Sequencer </p>
-<p>Sequencer 是 Disruptor 的真正核心。此接口有两个实现类 SingleProducerSequencer、MultiProducerSequencer ，它们定义在生产者和消费者之间快速、正确地传递数据的并发算法。</p>
-</li>
-<li><p>Sequence Barrier</p>
-<p>用于保持对RingBuffer的已发布Sequence 和Consumer依赖的其它Consumer的 Sequence 的引用。 Sequence Barrier 还定义了决定 Consumer 是否还有可处理的事件的逻辑。</p>
-</li>
-<li><p>Wait Strategy   定义 Consumer 如何进行等待下一个事件的策略。</p>
-</li>
-<li>Event  生产者和消费者之间进行交换的数据被称为事件(Event)。</li>
-<li>EventProcessor 持有特定消费者(Consumer)的 Sequence，并提供用于调用事件处理实现的事件循环(Event Loop)。</li>
-<li><p>EventHandler </p>
-<p>Disruptor 定义的事件处理接口，由用户实现，用于处理事件，是 Consumer 的真正实现。</p>
-</li>
-</ul>
-<p>了解disruptor中核心组件的含义之后，我们可能仍然对disruptor没有一个整体的认识。下面我们分析一下disruptor的生产流程。</p>
-<h2 id="生产流程"><a href="#生产流程" class="headerlink" title="生产流程"></a>生产流程</h2><p> 单一生产者的情况下，生产端不需要并发控制。首先申请写入m个元素，若是有m个元素可以写入，则返回最大的序列号（这儿主要判断是否会覆盖未读的元素）若是返回的正确，则生产者开始写入元素。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleWriter.png" alt=""></p>
-<h3 id="多个生产者"><a href="#多个生产者" class="headerlink" title="多个生产者"></a>多个生产者</h3><p> 多个生产者情况会遇到，会有多个生产者同时写入同一个位置的问题；disruptor的做法是每个线程获取不同的一段数组空间进行操作。这个通过CAS很容易达到（这跟JVM中创建对象内存分配策略tlab类似）。除此之外，这里仍然有个问题：如何防止读取的时候，读到还未写的元素。Disruptor在多个生产者的情况下，引入了一个与Ring Buffer大小相同的buffer：available Buffer。当某个位置写入成功的时候，便把availble Buffer相应的位置置位，标记为写入成功。读取的时候，会遍历available Buffer，来判断元素是否已经就绪。<br>读的过程：</p>
-<ul>
-<li>申请读取到序号n</li>
-<li>若writer cursor &gt;= n，这时仍然无法确定连续可读的最大下标。从reader cursor开始读取available Buffer，一直查到第一个不可用的元素，然后返回最大连续可读元素的位置；</li>
-<li>消费者读取元素.</li>
-</ul>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/multWriterReader.png" alt=""><br>如图所示，读线程读到下标为2的元素，三个线程Writer1/Writer2/Writer3正在向RingBuffer相应位置写数据，写线程被分配到的最大元素下标是11。读线程申请读取到下标从3到11的元素，判断writer cursor&gt;=11。然后开始读取availableBuffer，从3开始，往后读取，发现下标为7的元素没有生产成功，于是WaitFor(11)返回6。然后，消费者读取下标从3到6共计4个元素。</p>
-<p>写的过程：</p>
-<ul>
-<li>申请写入m个元素；</li>
-<li>若是有m个元素可以写入，则返回最大的序列号。每个生产者被分配到一段独享的空间。</li>
-<li>生产者写入元素，写入元素的同时设置available Buffer里面相应的位置，以标记自己哪些位置是已经写入成功的。</li>
-</ul>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/multWriterWrite.png" alt=""></p>
-<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>RingBuffer</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div><div class="line">53</div><div class="line">54</div><div class="line">55</div><div class="line">56</div><div class="line">57</div><div class="line">58</div><div class="line">59</div><div class="line">60</div><div class="line">61</div><div class="line">62</div><div class="line">63</div><div class="line">64</div><div class="line">65</div><div class="line">66</div><div class="line">67</div><div class="line">68</div><div class="line">69</div><div class="line">70</div><div class="line">71</div><div class="line">72</div><div class="line">73</div><div class="line">74</div><div class="line">75</div><div class="line">76</div></pre></td><td class="code"><pre><div class="line">abstract class RingBufferPad</div><div class="line">&#123;</div><div class="line">    protected long p1, p2, p3, p4, p5, p6, p7;</div><div class="line">&#125;</div><div class="line"> </div><div class="line">abstract class RingBufferFields&lt;E&gt; extends RingBufferPad</div><div class="line">&#123;</div><div class="line">    //填充数组头尾数量</div><div class="line">    private static final int BUFFER_PAD;</div><div class="line">    //数组的第一个元素位置，去掉填充值</div><div class="line">    private static final long REF_ARRAY_BASE;</div><div class="line">    //数组元素每个的引用大小的N次方</div><div class="line">    private static final int REF_ELEMENT_SHIFT;</div><div class="line">    private static final Unsafe UNSAFE = Util.getUnsafe();</div><div class="line">    static</div><div class="line">    &#123;</div><div class="line">        //每个元素引用占用的大小，32位是4，64位是8</div><div class="line">        final int scale = UNSAFE.arrayIndexScale(Object[].class);</div><div class="line">        if (4 == scale)</div><div class="line">        &#123;</div><div class="line">            //下面会多次左移，表示乘上每个元素大小</div><div class="line">            REF_ELEMENT_SHIFT = 2;</div><div class="line">        &#125;</div><div class="line">        else if (8 == scale)</div><div class="line">        &#123;</div><div class="line">            REF_ELEMENT_SHIFT = 3;</div><div class="line">        &#125;</div><div class="line">        else</div><div class="line">        &#123;</div><div class="line">            throw new IllegalStateException(&quot;Unknown pointer size&quot;);</div><div class="line">        &#125;</div><div class="line">        BUFFER_PAD = 128 / scale;</div><div class="line">        //包含PAD大小的数据</div><div class="line">        REF_ARRAY_BASE = UNSAFE.arrayBaseOffset(Object[].class) + (BUFFER_PAD &lt;&lt; REF_ELEMENT_SHIFT);</div><div class="line">    &#125;</div><div class="line">    //取余公式：m % 2^n = m &amp; ( 2^n - 1 )</div><div class="line">    private final long indexMask;</div><div class="line">    private final Object[] entries;</div><div class="line">    //RingBuffer的大小</div><div class="line">    protected final int bufferSize;</div><div class="line">    protected final Sequencer sequencer;</div><div class="line"> </div><div class="line">    RingBufferFields(EventFactory&lt;E&gt; eventFactory, Sequencer sequencer)</div><div class="line">    &#123;</div><div class="line">        this.sequencer = sequencer;</div><div class="line">        this.bufferSize = sequencer.getBufferSize();</div><div class="line">        if (bufferSize &lt; 1)</div><div class="line">        &#123;</div><div class="line">            throw new IllegalArgumentException(&quot;bufferSize must not be less than 1&quot;);</div><div class="line">        &#125;</div><div class="line">        if (Integer.bitCount(bufferSize) != 1)</div><div class="line">        &#123;</div><div class="line">            throw new IllegalArgumentException(&quot;bufferSize must be a power of 2&quot;);</div><div class="line">        &#125;</div><div class="line"> </div><div class="line">        this.indexMask = bufferSize - 1;</div><div class="line">        this.entries = new Object[sequencer.getBufferSize() + 2 * BUFFER_PAD];</div><div class="line">        fill(eventFactory);</div><div class="line">    &#125;</div><div class="line"> </div><div class="line">    //初始化时候会将每个位置都填充，之后，只会修改值或者修改引用</div><div class="line">    private void fill(EventFactory&lt;E&gt; eventFactory)</div><div class="line">    &#123;</div><div class="line">        for (int i = 0; i &lt; bufferSize; i++)</div><div class="line">        &#123;</div><div class="line">            entries[BUFFER_PAD + i] = eventFactory.newInstance();</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"> </div><div class="line">    @SuppressWarnings(&quot;unchecked&quot;)</div><div class="line">    protected final E elementAt(long sequence)</div><div class="line">    &#123;</div><div class="line">        //每个元素的位置 = 数组基址+数组头+引用偏移</div><div class="line">        return (E) UNSAFE.getObject(entries, REF_ARRAY_BASE + ((sequence &amp; indexMask) &lt;&lt; REF_ELEMENT_SHIFT));</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>Sequence其实就是一个64位的volatile值，内部通过缓存行填充，避免多线程访问sequence的伪共享问题。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div></pre></td><td class="code"><pre><div class="line">class LhsPadding</div><div class="line">&#123;</div><div class="line">    //前填充</div><div class="line">    protected long p1, p2, p3, p4, p5, p6, p7;</div><div class="line">&#125;</div><div class="line"> </div><div class="line">class Value extends LhsPadding</div><div class="line">&#123;</div><div class="line">    //真正用的值，是volatile</div><div class="line">    protected volatile long value;</div><div class="line">&#125;</div><div class="line"> </div><div class="line">class RhsPadding extends Value</div><div class="line">&#123;</div><div class="line">    //后填充</div><div class="line">    protected long p9, p10, p11, p12, p13, p14, p15;</div><div class="line">&#125;</div><div class="line"> </div><div class="line">public class Sequence extends RhsPadding</div><div class="line">&#123;</div><div class="line">    static final long INITIAL_VALUE = -1L;</div><div class="line">    private static final Unsafe UNSAFE;</div><div class="line">    private static final long VALUE_OFFSET;</div><div class="line"> </div><div class="line">    static</div><div class="line">    &#123;</div><div class="line">        UNSAFE = Util.getUnsafe();</div><div class="line">        try</div><div class="line">        &#123;</div><div class="line">            VALUE_OFFSET = UNSAFE.objectFieldOffset(Value.class.getDeclaredField(&quot;value&quot;));</div><div class="line">        &#125;</div><div class="line">        catch (final Exception e)</div><div class="line">        &#123;</div><div class="line">            throw new RuntimeException(e);</div><div class="line">        &#125;</div></pre></td></tr></table></figure>
-<p>SingleProducerSequencer单生产者的核心类，写不存在并发.</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div></pre></td><td class="code"><pre><div class="line">public long next(int n)</div><div class="line">&#123;</div><div class="line">    if (n &lt; 1)</div><div class="line">    &#123;</div><div class="line">        throw new IllegalArgumentException(&quot;n must be &gt; 0&quot;);</div><div class="line">    &#125;</div><div class="line">    long nextValue = this.nextValue;</div><div class="line">    long nextSequence = nextValue + n;</div><div class="line">    long wrapPoint = nextSequence - bufferSize;</div><div class="line">    long cachedGatingSequence = this.cachedValue;</div><div class="line">     </div><div class="line">    if (wrapPoint &gt; cachedGatingSequence || cachedGatingSequence &gt; nextValue)</div><div class="line">    &#123;</div><div class="line">        cursor.setVolatile(nextValue);</div><div class="line">        long minSequence;</div><div class="line">        //只要wrapPoint大于最小的gatingSequences，那么不断唤醒消费者去消费，并利用LockSupport让出CPU，直到wrapPoint不大于最小的gatingSequences</div><div class="line">        while (wrapPoint &gt; (minSequence = Util.getMinimumSequence(gatingSequences, nextValue)))</div><div class="line">        &#123;</div><div class="line">            waitStrategy.signalAllWhenBlocking();</div><div class="line">            LockSupport.parkNanos(1L);</div><div class="line">        &#125;</div><div class="line"> </div><div class="line">        this.cachedValue = minSequence;</div><div class="line">    &#125;</div><div class="line">    this.nextValue = nextSequence;</div><div class="line">    return nextSequence;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>多线程写核心类</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div></pre></td><td class="code"><pre><div class="line">public long next(int n)</div><div class="line">&#123;</div><div class="line">    if (n &lt; 1)</div><div class="line">    &#123;</div><div class="line">        throw new IllegalArgumentException(&quot;n must be &gt; 0&quot;);</div><div class="line">    &#125;</div><div class="line">    long current;</div><div class="line">    long next;</div><div class="line"> </div><div class="line">    do</div><div class="line">    &#123;</div><div class="line">        current = cursor.get();</div><div class="line">        next = current + n;</div><div class="line">        long wrapPoint = next - bufferSize;</div><div class="line">        long cachedGatingSequence = gatingSequenceCache.get();</div><div class="line">        if (wrapPoint &gt; cachedGatingSequence || cachedGatingSequence &gt; current)</div><div class="line">        &#123;</div><div class="line">            long gatingSequence = Util.getMinimumSequence(gatingSequences, current);</div><div class="line"> </div><div class="line">            if (wrapPoint &gt; gatingSequence)</div><div class="line">            &#123;</div><div class="line">                waitStrategy.signalAllWhenBlocking();</div><div class="line">                LockSupport.parkNanos(1); // TODO, should we spin based on the wait strategy?</div><div class="line">                continue;</div><div class="line">            &#125;</div><div class="line"> </div><div class="line">            gatingSequenceCache.set(gatingSequence);</div><div class="line">        &#125;</div><div class="line">        //区别是这里，进行CAS的操作</div><div class="line">        else if (cursor.compareAndSet(current, next))</div><div class="line">        &#123;</div><div class="line">            break;</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">    while (true);</div><div class="line"> </div><div class="line">    return next;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>waitStrategy。 Disruptor中有很多需要等待的地方，比如生产者需要等待可用的一个RingBuffer上的槽位，比如消费者1与消费者2之间有依赖关系，都依赖于WaitStrategy。disruptor实现了如下几种等待策略</p>
-<ul>
-<li><p>BlockingWaitStrategy：利用锁、等待机制的策略</p>
-</li>
-<li><p>SleepingWaitStrategy：初始重试200，根据重试的次数，选择盲等或者sleep</p>
-</li>
-<li>BusySpinWaitStrategy：不停的自旋，耗费CPU性能</li>
-<li>YieldingWaitStrategy：直接调用Thread.yield，延时不可控</li>
-</ul>
-<p>SequenceBarrier是消费者与Ringbuffer之间建立消费关系的媒介。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line">public long waitFor(final long sequence)</div><div class="line">    throws AlertException, InterruptedException, TimeoutException</div><div class="line">&#123;</div><div class="line">    checkAlert();</div><div class="line"> </div><div class="line">    long availableSequence = waitStrategy.waitFor(sequence, cursorSequence, dependentSequence, this);</div><div class="line"> </div><div class="line">    if (availableSequence &lt; sequence)</div><div class="line">    &#123;</div><div class="line">        return availableSequence;</div><div class="line">    &#125;</div><div class="line"> </div><div class="line">    return sequencer.getHighestPublishedSequence(sequence, availableSequence);</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>disruptor为什么快，因为它最大限度的利用起计算机资源，同时避免了锁的开销，线程预分配内存，批量处理，最大限度提高并行度；而且避免伪共享。</p>
-<p>参考：</p>
-<p><a href="https://tech.meituan.com/disruptor.html" target="_blank" rel="external">高性能队列——Disruptor</a></p>
-<p><a href="http://www.cnblogs.com/haiq/p/4112689.html" target="_blank" rel="external">Disruptor 极速体验
-</a></p>
-
+        <p class="article-more-link">
+          <a href="/2017/06/18/cocurrent-disruptor/#more">Read More</a>
+        </p>
       
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/06/18/cocurrent-disruptor/" data-id="cjez4yjhf0004nb2m61v7q9lu" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/06/18/cocurrent-disruptor/" data-id="cjf7ze97u00010t2mqnsbnfvz" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -331,29 +227,20 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
+  
+    
+    
+      <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>在探讨我们标题的内容之前，我们先来看下java要实现一个简单的延迟任务该如何实现（只考虑单机情况）。延迟任务是指由一个事件触发，经过一段时间触发另一个事件；比如用户开通会员一分钟后给用户发短信，比如下单五分钟内未支付取消订单。延迟任务没有固定开始时间，它有别于固定周期执行的定时任务。</p>
       
-        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>在探讨我们标题的内容之前，我们先来看下java要实现一个简单的延迟任务该如何实现（只考虑单机情况）。延迟任务是指由一个事件触发，经过一段时间触发另一个事件；比如用户开通会员一分钟后给用户发短信，比如下单五分钟内未支付取消订单。延迟任务没有固定开始时间，它有别于固定周期执行的定时任务。</p>
-<p>那么如何实现这种延时执行的任务呢？最简单的方法就是数据库轮询，所有的订单一般存在db或者缓存中，我们通过一个线程或者使用quartz等定时任务周期的扫描订单，找到超时的订单更改状态，这种实现最为简单。但是如果数据量大并且扫描频率高的话会带来严重的性能问题。</p>
-<p>下面我们看下延迟队列delayQueue是如何解决这个问题的。</p>
-<h1 id="delayQueue"><a href="#delayQueue" class="headerlink" title="delayQueue"></a>delayQueue</h1><figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div></pre></td><td class="code"><pre><div class="line">public class DelayQueue&lt;E extends Delayed&gt; extends AbstractQueue&lt;E&gt;</div><div class="line">    implements BlockingQueue&lt;E&gt; &#123;</div><div class="line"></div><div class="line">    private final transient ReentrantLock lock = new ReentrantLock();</div><div class="line">    private final PriorityQueue&lt;E&gt; q = new PriorityQueue&lt;E&gt;();</div><div class="line"></div><div class="line">    /**</div><div class="line">     * Thread designated to wait for the element at the head of</div><div class="line">     * the queue.  This variant of the Leader-Follower pattern</div><div class="line">     * (http://www.cs.wustl.edu/~schmidt/POSA/POSA2/) serves to</div><div class="line">     * minimize unnecessary timed waiting.  When a thread becomes</div><div class="line">     * the leader, it waits only for the next delay to elapse, but</div><div class="line">     * other threads await indefinitely.  The leader thread must</div><div class="line">     * signal some other thread before returning from take() or</div><div class="line">     * poll(...), unless some other thread becomes leader in the</div><div class="line">     * interim.  Whenever the head of the queue is replaced with</div><div class="line">     * an element with an earlier expiration time, the leader</div><div class="line">     * field is invalidated by being reset to null, and some</div><div class="line">     * waiting thread, but not necessarily the current leader, is</div><div class="line">     * signalled.  So waiting threads must be prepared to acquire</div><div class="line">     * and lose leadership while waiting.</div><div class="line">     */</div><div class="line">    private Thread leader = null;</div><div class="line"></div><div class="line">    /**</div><div class="line">     * Condition signalled when a newer element becomes available</div><div class="line">     * at the head of the queue or a new thread may need to</div><div class="line">     * become leader.</div><div class="line">     */</div><div class="line">    private final Condition available = lock.newCondition();</div></pre></td></tr></table></figure>
-<p>delayQueue的内部包含四个元素：可重入锁、一个优先级队列、用于优化阻塞通知的线程leader以及用于阻塞通知的Condition。</p>
-<p>priorityQueue是一个非阻塞队列，它是一个最小堆的结构，这里不再详细分析。delayQueue其实就是在每次往优先级队列中添加元素,然后以元素的过期值作为排序因子,以此来达到先过期的元素排在对首的目的。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line">public boolean offer(E e) &#123;</div><div class="line">        final ReentrantLock lock = this.lock;</div><div class="line">        lock.lock();</div><div class="line">        try &#123;</div><div class="line">            q.offer(e);</div><div class="line">            if (q.peek() == e) &#123;</div><div class="line">                leader = null;</div><div class="line">                available.signal();</div><div class="line">            &#125;</div><div class="line">            return true;</div><div class="line">        &#125; finally &#123;</div><div class="line">            lock.unlock();</div><div class="line">        &#125;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
-<p>offer方法以加锁的方式往优先级队列中添加元素，如果元素在队首则设置leader为null 并唤醒等待的线程（至于这么做的目的我们等会分析）。<br>继续看下take操作：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div></pre></td><td class="code"><pre><div class="line">public E take() throws InterruptedException &#123;</div><div class="line">        final ReentrantLock lock = this.lock;</div><div class="line">        lock.lockInterruptibly();</div><div class="line">        try &#123;</div><div class="line">            for (;;) &#123;</div><div class="line">                E first = q.peek();</div><div class="line">                if (first == null)</div><div class="line">                    available.await();</div><div class="line">                else &#123;</div><div class="line">                    long delay = first.getDelay(NANOSECONDS);</div><div class="line">                    if (delay &lt;= 0)</div><div class="line">                        return q.poll();</div><div class="line">                    first = null; // don&apos;t retain ref while waiting</div><div class="line">                    if (leader != null)</div><div class="line">                        available.await();</div><div class="line">                    else &#123;</div><div class="line">                        Thread thisThread = Thread.currentThread();</div><div class="line">                        leader = thisThread;</div><div class="line">                        try &#123;</div><div class="line">                            available.awaitNanos(delay);</div><div class="line">                        &#125; finally &#123;</div><div class="line">                            if (leader == thisThread)</div><div class="line">                                leader = null;</div><div class="line">                        &#125;</div><div class="line">                    &#125;</div><div class="line">                &#125;</div><div class="line">            &#125;</div><div class="line">        &#125; finally &#123;</div><div class="line">            if (leader == null &amp;&amp; q.peek() != null)</div><div class="line">                available.signal();</div><div class="line">            lock.unlock();</div><div class="line">        &#125;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
-<p>首先加锁，这没什么好说的。然后拿到优先级队列头部元素，如果为null,说明队列为空，则线程阻塞；否则获取该元素的delay值，若delay值等于0，说明该元素到达延迟时间，是可用状态，则调用poll方法取出元素，直接返回；如果delay时间值不为0，也就是还是不可用状态，则释放对队首元素的引用（避免内存泄露）；接着判断leader是否为空，不为空阻塞当前线程（说明已经有线程早一步在等待该元素）。如果leader元素为空的话,把当前线程赋值给leader元素,然后阻塞delay的时间,即等待队首到达可以出队的时间；循环以上步骤。最后在finally中，判断leader为空并且还有后续节点唤醒其他等待消费的线程。</p>
-<p>通过以上分析，想必大家已经认识到leader的作用，它是用来用来减少不必要的等待时间。在多个消费者去take的情况，只能有一个线程去等待元素的delay时间然后取走该元素，这个线程就是最先把自己设为leader的线程，其他线程只能等待下一个元素。</p>
-<p>单机下不考虑内存占用情况，使用delayQueue是实现延迟任务的一个有效手段，不仅没有定时扫描的巨大开销，还能保证任务延迟率在一个较低的水平。</p>
-<h1 id="wheelTimer"><a href="#wheelTimer" class="headerlink" title="wheelTimer"></a>wheelTimer</h1><p>单机情况下，还有一个解决延迟任务行之有效的手段就是时间轮。</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/wheelTimer.jpg" alt=""></p>
-<p>时间轮一种很巧妙的数据结构，如上图，就像一个钟盘，有8个“槽”，可以代表未来的一个时间。如果以秒为单位，中间的指针每隔一秒钟转动到新的“槽”上面。我们加入一个新的延迟任务时, 会根据延迟任务的超时时间与时间轮开始时间算出来它应该在的槽位。如果当前指针指在1上面，我们将入一个5秒后执行的任务，那么这个任务就会放在6这个槽上。那如果需要在20秒之后执行怎么办，由于这个环形结构槽数只到8，所以指针需要多转2圈。位置是在2圈之后的5上面（20 % 8 + 1）。这个圈数需要记录在槽中的数据结构里面。这个数据结构最重要的是两个指针，一个是触发任务的函数指针，另外一个是触发的总第几圈数。时间轮可以用简单的数组或者是环形链表来实现。</p>
-<p>netty中已经给出了这种时间轮算法的实现HashedWheelTimer，使用也很简单，只需要通过hashedWheelTimer.newTimeOut(TimerTask task, long delay, TimeUnit unit)方法加入延迟任务。<br>大家有兴趣可以去看一下io.netty.util.HashedWheelTimer的代码，设计相当巧妙。</p>
-<h1 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h1><p>delayQueue的一个主要应用就是延迟任务的调度，不考虑分布式任务情况下，使用延迟队列可以方便地解决；关于延迟任务，我们还给出了一种有效的方案：时间轮。在高负荷情况下，时间轮会比delayQueue延时率更低，因为delayQueue在高负载情况，线程争用更加激烈，并行消费的能力不高。</p>
-
+        <p class="article-more-link">
+          <a href="/2017/05/18/concurrent-delayQueue/#more">Read More</a>
+        </p>
       
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/18/concurrent-delayQueue/" data-id="cjez4yjhl0008nb2mzz29v4ln" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/18/concurrent-delayQueue/" data-id="cjf7ze98e000c0t2mzvhc876c" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -386,38 +273,20 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
+  
+    
+    
+      <h1 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h1><p>在多线程编程中，生产者消费者是经典的线程间数据共享问题。在多个生产者和消费者的情况，使用队列进行生产和消费的解耦，能有效解决线程间数据共享问题。但是考虑到生产消费速率不均衡的问题，我们必须能够让在队列为空时暂停消费，在队列满时暂停生产；基于这点考虑，我们需要需要在临界值对线程进行阻塞或者唤醒操作，这不仅增加了编程难度，还可能带来带来潜在的线程安全问题。幸好concurrent包为我们提供了强大的BlockingQueue。我们就来看看BlockingQueue如何进行生产消费的。</p>
       
-        <h1 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h1><p>在多线程编程中，生产者消费者是经典的线程间数据共享问题。在多个生产者和消费者的情况，使用队列进行生产和消费的解耦，能有效解决线程间数据共享问题。但是考虑到生产消费速率不均衡的问题，我们必须能够让在队列为空时暂停消费，在队列满时暂停生产；基于这点考虑，我们需要需要在临界值对线程进行阻塞或者唤醒操作，这不仅增加了编程难度，还可能带来带来潜在的线程安全问题。幸好concurrent包为我们提供了强大的BlockingQueue。我们就来看看BlockingQueue如何进行生产消费的。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div><div class="line">37</div><div class="line">38</div><div class="line">39</div><div class="line">40</div><div class="line">41</div><div class="line">42</div><div class="line">43</div><div class="line">44</div><div class="line">45</div><div class="line">46</div><div class="line">47</div><div class="line">48</div><div class="line">49</div><div class="line">50</div><div class="line">51</div><div class="line">52</div></pre></td><td class="code"><pre><div class="line">public class BlockingQueueTest &#123;</div><div class="line"></div><div class="line">    public static final BlockingQueue&lt;String&gt; bq = new ArrayBlockingQueue&lt;String&gt;(20);</div><div class="line">    public static void main(String[] args)</div><div class="line">    &#123;</div><div class="line">        for(int i=0; i&lt;10; i++)&#123;</div><div class="line">            Thread producerThread = new Thread(new Producer());</div><div class="line">            producerThread.start();</div><div class="line">            Thread consumerThread = new Thread(new Consumer());</div><div class="line">            consumerThread.start();</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    static class Consumer implements Runnable&#123;</div><div class="line"></div><div class="line">        @Override</div><div class="line">        public void run() &#123;</div><div class="line">            while (true)</div><div class="line">            &#123;</div><div class="line">                try</div><div class="line">                &#123;</div><div class="line">                    System.out.println(&quot;线程：&quot;+ Thread.currentThread().getName()+&quot;消费数据：&quot;+ bq.take());</div><div class="line">                    Thread.sleep(1000);</div><div class="line">                &#125;</div><div class="line">                catch (InterruptedException e)</div><div class="line">                &#123;</div><div class="line">                    e.printStackTrace();</div><div class="line">                &#125;</div><div class="line">            &#125;</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    static class Producer implements Runnable&#123;</div><div class="line"></div><div class="line">        @Override</div><div class="line">        public void run() &#123;</div><div class="line">            while (true)</div><div class="line">            &#123;</div><div class="line">                try</div><div class="line">                &#123;</div><div class="line">                    System.out.println(&quot;线程：&quot;+ Thread.currentThread().getName()+&quot;生产数据&quot;);</div><div class="line">                    bq.put(&quot;data&quot;);</div><div class="line">                    Thread.sleep(1000);</div><div class="line">                &#125;</div><div class="line">                catch (InterruptedException e)</div><div class="line">                &#123;</div><div class="line">                    e.printStackTrace();</div><div class="line">                &#125;</div><div class="line">            &#125;</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>我们创建一个容量为10的BlockingQueue，并创建10个生产者和消费者。生产者消费者之间的协调会按照前面所预期的进行。</p>
-<h1 id="BlockingQueue"><a href="#BlockingQueue" class="headerlink" title="BlockingQueue"></a>BlockingQueue</h1><p>下面我们就来扒一扒blockingQueue是如何解决我们的难题的。</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/blockingqueue.png" alt=""><br>上面就是BlockingQueue家族的主要成员。blockingQueue作为上层接口，定义了一些核心方法，各成员遵守这些方法的约定进行实现。</p>
-<ul>
-<li>offer(E e) 将对象加入队列中，非阻塞方式。</li>
-<li>offer(E e, long timeout, TimeUnit unit) 设置超时时间，在预期时间内未能放入队列则返回失败。</li>
-<li>put(E e) 阻塞方式入队列，若未能放入则当前线程挂起，直到能够放入线程唤醒。</li>
-<li>add(E e) 如不能放入对象，则抛异常</li>
-<li>poll() 从队首取出对象，非阻塞方式。</li>
-<li>poll(long timeout, TimeUnit unit)设置取队列元素的等待时间</li>
-<li>take()阻塞方式取对象。</li>
-<li>remove() 不能取出则抛异常。</li>
-<li>drainTo(Collection&lt;? super E&gt; c) 取出所用可用队列元素。</li>
-</ul>
-<p>我们可以发现这里操作是成对的 add(),remove()和offer,poll是对非阻塞队列的操作 而put,take是对阻塞队列的操作。</p>
-<p>对blockingQueue中的核心操作有了个概念之后我们以BlockingQueue成员之一ArrayBlockingQueue来看下阻塞队列的实现原理。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div><div class="line">34</div><div class="line">35</div><div class="line">36</div></pre></td><td class="code"><pre><div class="line">public class ArrayBlockingQueue&lt;E&gt; extends AbstractQueue&lt;E&gt;</div><div class="line">        implements BlockingQueue&lt;E&gt;, java.io.Serializable &#123;</div><div class="line"></div><div class="line">    /**</div><div class="line">     * Serialization ID. This class relies on default serialization</div><div class="line">     * even for the items array, which is default-serialized, even if</div><div class="line">     * it is empty. Otherwise it could not be declared final, which is</div><div class="line">     * necessary here.</div><div class="line">     */</div><div class="line">    private static final long serialVersionUID = -817911632652898426L;</div><div class="line"></div><div class="line">    /** The queued items */</div><div class="line">    final Object[] items;</div><div class="line"></div><div class="line">    /** items index for next take, poll, peek or remove */</div><div class="line">    int takeIndex;</div><div class="line"></div><div class="line">    /** items index for next put, offer, or add */</div><div class="line">    int putIndex;</div><div class="line"></div><div class="line">    /** Number of elements in the queue */</div><div class="line">    int count;</div><div class="line"></div><div class="line">    /*</div><div class="line">     * Concurrency control uses the classic two-condition algorithm</div><div class="line">     * found in any textbook.</div><div class="line">     */</div><div class="line"></div><div class="line">    /** Main lock guarding all access */</div><div class="line">    final ReentrantLock lock;</div><div class="line"></div><div class="line">    /** Condition for waiting takes */</div><div class="line">    private final Condition notEmpty;</div><div class="line"></div><div class="line">    /** Condition for waiting puts */</div><div class="line">    private final Condition notFull;</div></pre></td></tr></table></figure>
-<p>ArrayBlockingQueue的队列就是一个数组items。takeIndex和putIndex分别表示当前队首和队尾的下标，count表示队列元素的个数。lock是一个可重入锁，notEmpty和notFull是等待条件。</p>
-<p>下面我们直接看下核心操作put()和take()的实现：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div></pre></td><td class="code"><pre><div class="line">public void put(E e) throws InterruptedException &#123;</div><div class="line">        checkNotNull(e);</div><div class="line">        final ReentrantLock lock = this.lock;</div><div class="line">        lock.lockInterruptibly();</div><div class="line">        try &#123;</div><div class="line">            while (count == items.length)</div><div class="line">                notFull.await();</div><div class="line">            enqueue(e);</div><div class="line">        &#125; finally &#123;</div><div class="line">            lock.unlock();</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">    </div><div class="line">    private void enqueue(E x) &#123;</div><div class="line">        // assert lock.getHoldCount() == 1;</div><div class="line">        // assert items[putIndex] == null;</div><div class="line">        final Object[] items = this.items;</div><div class="line">        items[putIndex] = x;</div><div class="line">        if (++putIndex == items.length)</div><div class="line">            putIndex = 0;</div><div class="line">        count++;</div><div class="line">        notEmpty.signal();</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
-<p>首先尝试获取锁，然后判断队列元素个数是否达到容量，没有的话就入队列，否则在条件notFull上等待。入队列enqueue方法中会唤醒在条件notEmpty上等待的线程。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div></pre></td><td class="code"><pre><div class="line">public E take() throws InterruptedException &#123;</div><div class="line">        final ReentrantLock lock = this.lock;</div><div class="line">        lock.lockInterruptibly();</div><div class="line">        try &#123;</div><div class="line">            while (count == 0)</div><div class="line">                notEmpty.await();</div><div class="line">            return dequeue();</div><div class="line">        &#125; finally &#123;</div><div class="line">            lock.unlock();</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line">    </div><div class="line">   private E dequeue() &#123;</div><div class="line">        // assert lock.getHoldCount() == 1;</div><div class="line">        // assert items[takeIndex] != null;</div><div class="line">        final Object[] items = this.items;</div><div class="line">        @SuppressWarnings(&quot;unchecked&quot;)</div><div class="line">        E x = (E) items[takeIndex];</div><div class="line">        items[takeIndex] = null;</div><div class="line">        if (++takeIndex == items.length)</div><div class="line">            takeIndex = 0;</div><div class="line">        count--;</div><div class="line">        if (itrs != null)</div><div class="line">            itrs.elementDequeued();</div><div class="line">        notFull.signal();</div><div class="line">        return x;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
-<p>take（）操作则刚好相反，put方法等待的是notFull条件，而take方法等待的是notEmpty条件。条件满足时dequeue，从对首取出元素，唤醒在条件notFull()上等待的线程。</p>
-<p>实际上阻塞对列就是用锁代替了我们使用Object.wait()/Object.notify()基于非阻塞队列实现生产消费模型，其他不同类型的BlockingQueue实现原理类似。阻塞队列帮助我们解决了线程同步的难题，避免出错了可能。在认识阻塞队列的作用之后，下一篇我们继续探讨下BlockingQueue家族中另外一位能力出众的成员DelayQueue。</p>
-
+        <p class="article-more-link">
+          <a href="/2017/05/17/concurrent-blockingQueue/#more">Read More</a>
+        </p>
       
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/17/concurrent-blockingQueue/" data-id="cjez4yjhi0005nb2mpg3lym0v" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/17/concurrent-blockingQueue/" data-id="cjf7ze98a00090t2mj4zb3olu" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -450,29 +319,20 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
+  
+    
+    
+      <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>我们知道在并发编程中，对共享变量的访问必须是非常小心的，因为少有不慎就可能引起线程安全问题，在保证线程安全的前提下，我们往往需要考虑并发场景的性能问题。但在某些场景下，变量是同一个,但是每个线程只需要使用变量的一个副本，独立变化，这时候也就不用考虑并发问题，这就是threadLocal的作用。</p>
       
-        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>我们知道在并发编程中，对共享变量的访问必须是非常小心的，因为少有不慎就可能引起线程安全问题，在保证线程安全的前提下，我们往往需要考虑并发场景的性能问题。但在某些场景下，变量是同一个,但是每个线程只需要使用变量的一个副本，独立变化，这时候也就不用考虑并发问题，这就是threadLocal的作用。</p>
-<h1 id="ThreadLocal"><a href="#ThreadLocal" class="headerlink" title="ThreadLocal"></a>ThreadLocal</h1><p>threadLocal经典的应用场景是用来解决数据库连接、session管理。<br>我们先看这样一个数据库连接的例子：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div></pre></td><td class="code"><pre><div class="line">class ConnectionManager &#123;</div><div class="line">     </div><div class="line">    private static Connection connect = null;</div><div class="line">     </div><div class="line">    public static Connection openConnection() &#123;</div><div class="line">        if(connect == null)&#123;</div><div class="line">            connect = DriverManager.getConnection();</div><div class="line">        &#125;</div><div class="line">        return connect;</div><div class="line">    &#125;</div><div class="line">     </div><div class="line">    public static void closeConnection() &#123;</div><div class="line">        if(connect!=null)</div><div class="line">            connect.close();</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>这是一个数据连接管理类，很明显在并发情况有线程安全问题：可能出现多个线程同时调用openConnection从而创建多个连接，导致连接泄露；再有一个线程使用连接时，另一个线程调用了close方法，导致连接失效。实际上数据库连接并不需要是单例的，每个线程只要能独立维护自己的连接就可以，但是将OpenConnection方法改成每次调用都创建新的连接，会造成连接频繁创建销毁，服务端压力过重。</p>
-<p>这时候使用ThreadLocal可以方便的解决：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div></pre></td><td class="code"><pre><div class="line">private static ThreadLocal&lt;Connection&gt; connectionHolder</div><div class="line">= new ThreadLocal&lt;Connection&gt;() ;</div><div class="line">public Connection getConnection() &#123;</div><div class="line">    Connection conn = (Connection)connectionHolder.get();</div><div class="line">    if(conn == null)&#123;</div><div class="line">    conn = connectionManager.getConnection();</div><div class="line">    connectionHolder.set(conn)</div><div class="line">   &#125;</div><div class="line">   return conn;</div><div class="line">&#125;;</div><div class="line"> </div><div class="line">public static Connection getConnection() &#123;</div><div class="line">return connectionHolder.get();</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>这样每个线程都会创建自己的连接,避免了并发问题，同时也避免了连接泛滥；ThreadLocal说白了就是为了线程绑定公共资源，其目的就是为了是每个线程能够隔离公共资源。</p>
-<p>下面从代码层面分析一下ThreadLocal如何实现这种隔离的：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div></pre></td><td class="code"><pre><div class="line">public T get() &#123;</div><div class="line">        Thread t = Thread.currentThread();</div><div class="line">        ThreadLocalMap map = getMap(t);</div><div class="line">        if (map != null) &#123;</div><div class="line">            ThreadLocalMap.Entry e = map.getEntry(this);</div><div class="line">            if (e != null) &#123;</div><div class="line">                @SuppressWarnings(&quot;unchecked&quot;)</div><div class="line">                T result = (T)e.value;</div><div class="line">                return result;</div><div class="line">            &#125;</div><div class="line">        &#125;</div><div class="line">        return setInitialValue();</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
-<p>上面是threadLocal的get方法，当我们调用get的时候，首先会获取当前线程，然后拿到线程的ThreadLocalMap。Thread中维护一个threadLocalMap,它是ThreadLocal的一个静态内部类,它以threadLocal对象作为键，值为该threadLocal在线程内部的value;</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div></pre></td><td class="code"><pre><div class="line">//Thread</div><div class="line">ThreadLocalMap threadLocals = null;</div><div class="line"> ThreadLocalMap inheritableThreadLocals = null;</div></pre></td></tr></table></figure>
-<p>继续看get方法，如果map不为空并且map中存在该threadLocal的值则直接取出value,否则进行setInitialValue().其实就是在线程内存创建一个ThreadLocalMap的过程。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div></pre></td><td class="code"><pre><div class="line">private T setInitialValue() &#123;</div><div class="line">        T value = initialValue();</div><div class="line">        Thread t = Thread.currentThread();</div><div class="line">        ThreadLocalMap map = getMap(t);</div><div class="line">        if (map != null)</div><div class="line">            map.set(this, value);</div><div class="line">        else</div><div class="line">            createMap(t, value);</div><div class="line">        return value;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
-<h1 id="ThreadLocalMap"><a href="#ThreadLocalMap" class="headerlink" title="ThreadLocalMap"></a>ThreadLocalMap</h1><p>每个线程内部都一个一个ThreadLocal.ThreadLocalMap对象，它是ThreadLocal一个内部类，保存线程用到的所有threadLocal及其value。</p>
-<p>TheadLocalMap.Entry继承weakReference,是key(ThreadLocal对象)和value线程内部值的容  器。一旦threadLocal对象没有了强引用，所有线程中map中的key就会被回收，value此时不会被回收，下次get/set操作时探测到有key被回收的entry时，会回收value,会将value设成null.这个过程和java.util.weakHashMap类似。</p>
-<p> 计算hashcode是共享一个AtomicInteger的nexthashcode 从0开始以一个间隔自增，然后根据hashcode &amp;(tablelength-1)定位桶。ThreadLocalMap中发生hash冲突时，不是像HashMap这样用链表来解决冲突，而是是将索引++，放到下一个索引处来解决冲突。</p>
-<p> ThreadLocalMap的回收随着线程销毁而回收。一旦线程退出，Thread对象被回收，map中的value也就被回收，但是线程池中的线程永远不会被回收，只会阻塞，如果队列中的某个任务向ThreadLocalput了一个对象，但任务结束后并未清空，那么这个对象在ThreadLocal的下一次put或clear前永远不会被GC；这种情况下，假如线程池有200个线程，那么一个ThreadLocal最多可能造成200个对象的内存泄露。</p>
-
+        <p class="article-more-link">
+          <a href="/2017/05/13/concurrent2-threadLocal/#more">Read More</a>
+        </p>
       
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/13/concurrent2-threadLocal/" data-id="cjez4yjhq000bnb2mohsu282g" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/13/concurrent2-threadLocal/" data-id="cjf7ze98600050t2mjdh3az3x" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -505,50 +365,20 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
+  
+    
+    
+      <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>CAS(compare and swap)在并发领域有着不可或缺的作用，并发大神Doug lea在线程同步中大量使用cas,写出很多颇具艺术性的代码,可以说没有cas，就没有java.util.concurrent包。</p>
       
-        <h1 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h1><p>CAS(compare and swap)在并发领域有着不可或缺的作用，并发大神Doug lea在线程同步中大量使用cas,写出很多颇具艺术性的代码,可以说没有cas，就没有java.util.concurrent包。</p>
-<p>CAS的概念想必大家都很清楚，就是字面意思”比较替换”,cas中有三个值：当前内存值V,预期内存值A,要更新的值B。比较内存值V与预期值A是否相同，若是则将V更新成B，否则do nothing。</p>
-<h1 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h1><p>从一个i++问题开始</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div></pre></td><td class="code"><pre><div class="line">public Test implements Runnable&#123;</div><div class="line"></div><div class="line">    volatile int i;</div><div class="line"></div><div class="line">    public void run() &#123;</div><div class="line">        i++;</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>我们知道当多个线程并发执行run方法的时候，是无法保证线程的。因为i++不是原子操作，即便i有volatile关键字修饰，但是volatile只能保证内存可见性，不能保证线程同步，根据jvm内存模型可以知道最后的执行结果是与预期有偏差的。那么如果得到正确的结果，当然将i++放在一个synchronized方法中来强制线程同步固然可行，但是带来频繁的线程上下文切换的开销，考虑性能并不合适。这里我们使用AtomicInteger来解决。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div></pre></td><td class="code"><pre><div class="line">public class Test2 &#123;</div><div class="line"></div><div class="line">    private static AtomicInteger i = new AtomicInteger(0);</div><div class="line"></div><div class="line">    public static void increment() &#123;</div><div class="line">        i.getAndIncrement();</div><div class="line">    &#125;</div><div class="line"></div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>这是我们会发现i的自增在并发情况下总是符合预期的，因为它是原子操作，而这种原子操作正是通过cas来保证。下面通过代码来看下：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div></pre></td><td class="code"><pre><div class="line">public final int getAndIncrement() &#123;</div><div class="line">        return unsafe.getAndAddInt(this, valueOffset, 1);</div><div class="line">    &#125;</div><div class="line"> //unsafe. getAndAddInt</div><div class="line"> public final int getAndAddInt(Object var1, long var2, int var4) &#123;</div><div class="line">        int var5;</div><div class="line">        do &#123;</div><div class="line">            var5 = this.getIntVolatile(var1, var2);</div><div class="line">        &#125; while(!this.compareAndSwapInt(var1, var2, var5, var5 + var4));</div><div class="line"></div><div class="line">        return var5;</div><div class="line">    &#125;</div></pre></td></tr></table></figure>
-<p>当两个线程A和B同时执行increment的时候，因为value的原始值是0，也就是在内存中value的值是0，根据jvm内存模型，线程A和B中各自保留一份value副本，值为0。</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/cas_1.png" alt=""><br>根据java内存模型,java内存分为工作内存和主存。工作内存即java线程的本地内存，是单独给某个线程分配的，存储局部变量等，同时也会复制主存的共享变量作为本地的副本，目的是为了减少和主存通信的频率，提高效率。线程对共享变量的操作的都是对本地的副本进行操作，在线程执行完毕后刷回主存，而volatile保存内存可见性的含义就是线程每次读取都是从主存读取，更新完成后立即刷回主存，保证线程每次拿共享变量是其他线程的更新对当前线程是可见的。</p>
-<p>我们继续分析上面并发执行increment的情况，线程A执行compareAndSwapInt（）从主存拿到value的值是0，而它预期的旧值也是0，所以将value更新成1并刷回主存；线程B同样执行compareAndSwapInt，发现从主存拿到value的值是1，而它预期的值为0，所以本次更新失败，只是将本地value更新成1，继续下一次cas;整个过程中，利用CAS保证了对于value的修改的并发安全。</p>
-<h1 id="深入原理"><a href="#深入原理" class="headerlink" title="深入原理"></a>深入原理</h1><p>compareAndSwapInt是一个本地方法，位于unsafe类中，unsafe类是底层操作为上层java开的一个后门，大多是native方法。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div></pre></td><td class="code"><pre><div class="line">public final native boolean compareAndSwapInt(Object paramObject, long paramLong, int paramInt1, int paramInt2);</div></pre></td></tr></table></figure>
-<p>它的实现在unsafe.cpp中，流程如下：先尝试拿到value在内存中的值，然后Atomic::cmpxchg实现即将更新的值和原内存值比较替换。</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div></pre></td><td class="code"><pre><div class="line">// Adding a lock prefix to an instruction on MP machine</div><div class="line">// VC++ doesn&apos;t like the lock prefix to be on a single line</div><div class="line">// so we can&apos;t insert a label after the lock prefix.</div><div class="line">// By emitting a lock prefix, we can define a label after it.</div><div class="line">#define LOCK_IF_MP(mp) __asm cmp mp, 0  \</div><div class="line">                       __asm je L0      \</div><div class="line">                       __asm _emit 0xF0 \</div><div class="line">                       __asm L0:</div><div class="line"></div><div class="line">inline jint     Atomic::cmpxchg    (jint     exchange_value, volatile jint*     dest, jint     compare_value) &#123;</div><div class="line">  // alternative for InterlockedCompareExchange</div><div class="line">  int mp = os::is_MP();</div><div class="line">  __asm &#123;</div><div class="line">    mov edx, dest</div><div class="line">    mov ecx, exchange_value</div><div class="line">    mov eax, compare_value</div><div class="line">    LOCK_IF_MP(mp)</div><div class="line">    cmpxchg dword ptr [edx], ecx</div><div class="line">  &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>上面是cmpxchg的intel x86的实现。如代码所示（实际是通过别人解释的）程序会根据当前处理器的类型来决定是否为cmpxchg指令添加lock前缀。如果程序是在多处理器上运行，就为cmpxchg指令加上lock前缀（lock cmpxchg）。反之，如果程序是在单处理器上运行，就省略lock前缀，因为单处理器自身会维护单处理器内的顺序一致性，不需要lock前缀提供的内存屏障效果。</p>
-<p>intel手册对lock前缀的说明如下：</p>
-<ol>
-<li>确保后续指令执行的原子性。<br>在Pentium及之前的处理器中，带有lock前缀的指令在执行期间会锁住总线，使得其它处理器暂时无法通过总线访问内存，很显然，这个开销很大。在新的处理器中，Intel使用缓存锁定来保证指令执行的原子性，缓存锁定将大大降低lock前缀指令的执行开销。</li>
-<li>禁止该指令与前面和后面的读写指令重排序。</li>
-<li>把写缓冲区的所有数据刷新到内存中。</li>
-</ol>
-<p>现代cpu的寄存器与内存之前存在L1,L2,L3高速缓存，频繁使用的内存会缓存在高速缓存中，此时以缓存锁定来代替总线锁定，利用缓存一致性机制来保证操作的原子性。从上面二三点我们也可以看出cas同时包含了volatile读和写的内存语义。</p>
-<h1 id="cas存在问题"><a href="#cas存在问题" class="headerlink" title="cas存在问题"></a>cas存在问题</h1><p>尽量cas能够实现线程的lock-free,在很多并发场景中提供比锁更优的性能，但是cas也存在如下几个问题：</p>
-<ul>
-<li>ABA问题</li>
-</ul>
-<p>如果一个值原来是A，变成了B，又变成了A，那么使用CAS进行检查时会发现它的值没有发生变化，则cas操作成功，这样可能会存在问题</p>
-<p>解决办法：在变量前面追加上版本号，每次变量更新的时候把版本号加一，那么A－B－A 就会变成1A-2B-3A。atomic包提供了一个类AtomicStampedReference来解决ABA问题，增加当前标记与预期标志的比较。</p>
-<ul>
-<li>循环时间长开销大</li>
-</ul>
-<p>对于资源竞争严重的情况，CAS自旋的概率会比较大，从而浪费更多的CPU资源。</p>
-<p>解决办法：PAUSE指令。PAUSE指令会在循环等待时提示处理器，处理器利用这个提示可以避免在大多数情况下的内存顺序违规，这将大幅提升性能。</p>
-<ul>
-<li>只能保证一个共享变量的原子操作</li>
-</ul>
-<p>解决办法：1.可以用锁。 2.合并这两个变量 Atomic包提供的atomicRefrence应用保证对象之前的原子性，可以把多个变量放在同一个对象里来进行cas操作。</p>
-
+        <p class="article-more-link">
+          <a href="/2017/05/02/concurrent-1-cas/#more">Read More</a>
+        </p>
       
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/05/02/concurrent-1-cas/" data-id="cjez4yjhf0003nb2moj492nag" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/05/02/concurrent-1-cas/" data-id="cjf7ze98100040t2m1jmlv0at" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/并发/">并发</a></li></ul>
@@ -581,17 +411,20 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
+  
+    
+    
+      <p>说到动态代理，我们先来说说代理模式。代理模式是Java中一种常见的也是非常重要的设计模式，先来看下定义：当一个对象不适合或者无法直接访问另一对象时，通过一个代理来控制对另一对象的访问，这个代理对象就起到了一个中介的作用。代理模式的主要特征是代理类和委托类实现同一接口。下面就是代理模式最基本的结构图。<br><img src="http://osjt45oaj.bkt.clouddn.com/proxy1.png" alt=""><br>根据这个定义，我们先写一个简单的代理模式：</p>
       
-        <p>说到动态代理，我们先来说说代理模式。代理模式是Java中一种常见的也是非常重要的设计模式，先来看下定义：当一个对象不适合或者无法直接访问另一对象时，通过一个代理来控制对另一对象的访问，这个代理对象就起到了一个中介的作用。代理模式的主要特征是代理类和委托类实现同一接口。下面就是代理模式最基本的结构图。<br><img src="http://osjt45oaj.bkt.clouddn.com/proxy1.png" alt=""><br>根据这个定义，我们先写一个简单的代理模式：</p>
-<figure class="highlight plain"><table><tr><td class="gutter"><pre><div class="line">1</div><div class="line">2</div><div class="line">3</div><div class="line">4</div><div class="line">5</div><div class="line">6</div><div class="line">7</div><div class="line">8</div><div class="line">9</div><div class="line">10</div><div class="line">11</div><div class="line">12</div><div class="line">13</div><div class="line">14</div><div class="line">15</div><div class="line">16</div><div class="line">17</div><div class="line">18</div><div class="line">19</div><div class="line">20</div><div class="line">21</div><div class="line">22</div><div class="line">23</div><div class="line">24</div><div class="line">25</div><div class="line">26</div><div class="line">27</div><div class="line">28</div><div class="line">29</div><div class="line">30</div><div class="line">31</div><div class="line">32</div><div class="line">33</div></pre></td><td class="code"><pre><div class="line">public interface Service &#123;</div><div class="line">    void doService();</div><div class="line">&#125;</div><div class="line"></div><div class="line">public class ProxyDemo &#123;</div><div class="line"></div><div class="line">    class ServiceImpl implements Service&#123;</div><div class="line">        @Override</div><div class="line">        public void doService() &#123;</div><div class="line">            System.out.println(&quot;do some service&quot;);</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    class Proxy implements Service&#123;</div><div class="line">        private Service service;</div><div class="line"></div><div class="line">        public Proxy(Service service)&#123;</div><div class="line">            this.service = service;</div><div class="line">        &#125;</div><div class="line">        @Override</div><div class="line">        public void doService() &#123;</div><div class="line">            System.out.println(&quot;do something before&quot;);</div><div class="line">            service.doService();</div><div class="line">            System.out.println(&quot;do something after&quot;);</div><div class="line">        &#125;</div><div class="line">    &#125;</div><div class="line"></div><div class="line">    public static void main(String[] args)&#123;</div><div class="line">        Service service = new ProxyDemo().new ServiceImpl();</div><div class="line">        Service proxy = new ProxyDemo().new Proxy(service);</div><div class="line">        proxy.doService();</div><div class="line">    &#125;</div><div class="line">&#125;</div></pre></td></tr></table></figure>
-<p>上面就是代理模式的一种基本实现，我们称之静态代理。它可以在不修改目标对象的前提下，对目标功能进行拓展。所以缺<br>点也是显而易见的。因为代理对象需要与目标对象实现一样的接口，所以会有很多代理类，而且,一旦接口增加方法,目标对象与代理对象都要维护。动态代理就解决了这些问题。</p>
-<h1 id="JDK动态代理"><a href="#JDK动态代理" class="headerlink" title="JDK动态代理"></a>JDK动态代理</h1><p>动态代理有两种，JDK动态代理和cglib动态代理，本文我先来深入探讨一下JDK动态代理。JDK动态代理需要我们实现<br>InvocationHandler接口，在invoke方法中对目标类的目标方法进行增强（即定义横切逻辑），还是先上代码看下如何使用。</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/proxy2.png" alt=""><br>这就是jdk动态代理的基本用法，实际这就是一个aop了，spring aop也是使用Proxy和InvocationHandler这两个<br>类来进行方法增强的。通过这种方式我们就可以动态的代理目标对象，可是它是怎么达到效果的呢？知其然，知其所以然。下面就跟下这两个类的源码。<br><img src="http://osjt45oaj.bkt.clouddn.com/proxy3.png" alt=""><br>上面是Proxy#newProxyInstance方法。我们先看下729行，这里调用目标类的构造方法，然后739行，实例化目标类<br>并将对象返回给上面的MyInvocationHandler。我们再跟进上面的getproxyClass方法看下。<br><img src="http://osjt45oaj.bkt.clouddn.com/proxy4.png" alt=""><br>进入proxyClassCache.get这里先看目标接口的实例是否有缓存，有就直接返回。没有就通过ProxyclassFactory<br>这个工厂类创建并加入缓存。最近通过ProxyclassFactory的apply方法创建实例。<br><img src="http://osjt45oaj.bkt.clouddn.com/proxy5.png" alt=""><br>中间一些校验的逻辑跳过<br><img src="http://osjt45oaj.bkt.clouddn.com/proxy6.png" alt=""><br>上面的639行：ProxyGenerator#GenerateProxyClass方法才是生成代理类的关键所在，它其实是动态生成字节码并<br>保存到硬盘。到这里我们也就了解了jdk是怎样动态的生成的代理类了，可是代理类是怎么样调到我们上面的InvocationH<br>andler的invoke方法的呢？实际上这个生成代理类会传入一个InvocationHandler对象，代理类在覆盖接口的目标方<br>法中会调用invoke方法。JDK动态代理大致上就是这样一个过程。</p>
-
+        <p class="article-more-link">
+          <a href="/2017/04/12/JDK-Dynamic-Proxy/#more">Read More</a>
+        </p>
       
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cjez4yjh40000nb2m9xx022ar" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/12/JDK-Dynamic-Proxy/" data-id="cjf7ze97p00000t2my0ubks8z" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -624,14 +457,20 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
+  
+    
+    
+      <p>如何确保一个java类只被实例化一次？很显然，答案是单例模式。单例模式是一种常见而且非常有用的设计模式，我们到处能看见单例模式的身影，比如创建各种连接池、线程池、日志对象等。单例类通过自行实例化并且在系统中有实例请求时提供这个实例，从而确保该类只被实例化一次。</p>
       
-        <p>如何确保一个java类只被实例化一次？很显然，答案是单例模式。单例模式是一种常见而且非常有用的设计模式，我们到处能看见单例模式的身影，比如创建各种连接池、线程池、日志对象等。单例类通过自行实例化并且在系统中有实例请求时提供这个实例，从而确保该类只被实例化一次。</p>
-<h2 id="懒汉式"><a href="#懒汉式" class="headerlink" title="懒汉式"></a>懒汉式</h2><p><img src="http://osjt45oaj.bkt.clouddn.com/singleton1.png" alt=""><br>懒汉式实际上是一种懒加载，但为了在多线程环境下不破坏单例，需要在获取实例时增加双重检查或静态内部类的方式确保线程安全。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton2.png" alt=""><br>通过双重检测可以确保singleton只被实例化一次，但这里其实还是有问题，因为对象初始化和为对象引用赋值存在指令重排序，线程判断singleton不为null时返回的可能是一个未初始化的对象，可以用volatile关键字解决，这里不做赘述。我们还可以通过静态内部类的方式达到线程安全的目的。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton3.png" alt=""><br>通过静态内部类的方式获取Singleton的实例是线程安全的，因为jvm保证类的加载和初始化过程是线程安全的，所以此种方式创建单例既实现线程安全，又避免同步带来的性能英雄，要优于双重检查的方式。<br>那么问题来了，上面线程安全的单例是否不论什么情况下都只有一个实例？答案是否定的。我们可以通过反射和反序列化来破坏单例。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton4.png" alt=""><br>上面是通过反射的方式强行调用构造方法，显然输出结果为false。当单例类实现了Serializable接口，即该类对象可序列化时，可以通过序列化和反序列化过程自行获取实例。序列化与反序列可以实现对象的深拷贝。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton5.png" alt=""><br>为了防止这种暴力的破坏单例，可以对上面的单例类稍加改造。<br><img src="http://osjt45oaj.bkt.clouddn.com/singleton6.png" alt=""><br> 到此为止，我们就创建了一个严格意义的单例，实际上枚举类内部实现与此类似，所以枚举是实现单例最好的方式。</p>
-
+        <p class="article-more-link">
+          <a href="/2017/04/10/singleton/#more">Read More</a>
+        </p>
       
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjez4yjii0013nb2mu2hr71rx" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/10/singleton/" data-id="cjf7ze99b00170t2m180wkouq" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/设计模式/">设计模式</a></li></ul>
@@ -664,43 +503,20 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
+  
+    
+    
+      <h1 id="BIO与NIO"><a href="#BIO与NIO" class="headerlink" title="BIO与NIO"></a>BIO与NIO</h1><p>BIO是Java IO最开始提供的一种IO模型，在传统BIO中，ServerSocket 负责绑定IP地址，启动监听端口；Socket负责发起连接操作，连接成功后，双方通过输入和输出流进行同步阻塞通信。采用BIO通信模型的Server，通常由一个独立的Acceptor线程负责监听Client端的连接，它接受到Client端连接请求后为每个Client创建一个新的线程进行处理，处理完之后，通过输出流返回给Client端，线程销毁。</p>
       
-        <h1 id="BIO与NIO"><a href="#BIO与NIO" class="headerlink" title="BIO与NIO"></a>BIO与NIO</h1><p>BIO是Java IO最开始提供的一种IO模型，在传统BIO中，ServerSocket 负责绑定IP地址，启动监听端口；Socket负责发起连接操作，连接成功后，双方通过输入和输出流进行同步阻塞通信。采用BIO通信模型的Server，通常由一个独立的Acceptor线程负责监听Client端的连接，它接受到Client端连接请求后为每个Client创建一个新的线程进行处理，处理完之后，通过输出流返回给Client端，线程销毁。</p>
-<p>在高并发场景下，BIO模型的弊端就显露无疑，流量增大会导致线程数膨胀最终导致服务崩溃。其实BIO对此有所改进，抛弃线程一对一处理请求，使用线程池处理所有客户端请求，另外使用消息队列接受客户端请求。但由于它仍然是面向数据流的，底层仍然是同步阻塞模型，阻塞时间取决于线程处理时间和IO传输时间。</p>
-<p>NIO相对BIO来说是一种新的IO模型，与Socket类和ServerSocket类相对应，NIO也提供了SocketChannel和 ServerSocketChannel两种不同套接字通道的实现，它们都支持阻塞和非阻塞两种模式。一般来说，低负载、低并发的应用程序可以选择同步阻塞IO以降低复杂度，但是高负载、高并发的网络应用，需要使用NIO的非阻塞模式进行开发。NIO这种不做详细介绍。</p>
-<h1 id="Reactor与Proactor"><a href="#Reactor与Proactor" class="headerlink" title="Reactor与Proactor"></a>Reactor与Proactor</h1><p>reactor和proactor是两种常用的事件分发IO多路复用方案。通常来讲 reactor是基于同步IO，而proactor是基于异步IO（不是绝对的），两者都是有一个event demultiplexer（事件多路分解器）来检测IO状态，不同的handler来注册对某个IO的监听，当IO可以使用的时候，event demultiplexer来通知相应的handler。</p>
-<h2 id="reactor"><a href="#reactor" class="headerlink" title="reactor"></a>reactor</h2><p>Reactor 的中心思想是众所周知的 I/O 多路复用:select,poll,epoll等。Reactor的一般工作过程是首先在Reactor中注册感兴趣事件，并在注册时候指定某个已定义的回调函数。当客户端发送请求时，在 Reactor中会触发刚才注册的事件，并调用对应的处理函数。在这一个处理回调函数中，一般会有数据接收、处理、回复请求等操作。</p>
-<p><img src="http://osjt45oaj.bkt.clouddn.com/reactor01.png" alt=""></p>
-<p>Reactor包含如下角色：</p>
-<ul>
-<li>Handle 句柄；用来标识socket连接或是打开文件；</li>
-<li>Synchronous Event Demultiplexer：同步事件多路分解器：由操作系统内核实现的一个函数；用于阻塞等待发生在句柄集合上的一个或多个事件；（如select/epoll；）</li>
-<li>Event Handler：事件处理接口</li>
-<li>Concrete Event Handler：实现应用程序所提供的特定事件处理逻辑；</li>
-<li>Reactor：反应器，定义一个接口，实现以下功能：<br>1）供应用程序注册和删除关注的事件句柄；<br>2）运行事件循环；<br>3）有就绪事件到来时，分发事件到之前注册的回调函数上处理；</li>
-</ul>
-<p>以read为例，reactor做法是：</p>
-<ul>
-<li>某个事件处理者宣称它对某个socket上的读事件很感兴趣;</li>
-<li>事件分离者等着这个事件的发生;</li>
-<li>当事件发生了，事件分离器被唤醒，这负责通知先前那个事件处理者;</li>
-<li>事件处理者收到消息，于是去那个socket上读数据了. 如果需要，它再次宣称对这个socket上的读事件感兴趣，一直重复上面的步骤;</li>
-</ul>
-<h2 id="proactor"><a href="#proactor" class="headerlink" title="proactor"></a>proactor</h2><p>从上面 Reactor 模式中，发现服务端数据的接收和发送都占用了用户状态（还有一种内核态），这样服务器的处理操作就在数据的读写上阻塞花费了时间，节省这些时间的办法是借助操作系统的异步读写；异步读写在调用的时候可以传递回调函数或者回送信号，当异步操作完毕，内核会自动调用回调函数或者发送信号。Proactor 就是这么做的，所以很依赖操作系统。</p>
-<p>继续以读为例，proactor做法是：</p>
-<ul>
-<li>处理器发起异步读操作，这就要求操作系统必须支持异步IO。这种情况下，处理无视IO就绪事件，它关注的是完成事件。</li>
-<li>事件分离器等待完成事件</li>
-<li>在分离等待过程中，操作系统充分利用并行的内核线程进行实际的读操作，并将结果放入用户自定义缓冲区，最后通知事件分离器操作完成。</li>
-<li>事件分离器通知事件处理器</li>
-<li>事件处理器处理用户自定义缓冲区的数据，然后启动一个新的异步操作，并将控制权返还给事件分离器。</li>
-</ul>
-<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p> 可以看出，两个模式的相同点，都是对某个IO事件的事件通知(即告诉某个模块，这个IO操作可以进行或已经完成)。在结构上，两者也有相同点：demultiplexor负责提交IO操作(异步)、查询设备是否可操作(同步)，然后当条件满足时，就回调handler；不同点在于，异步情况下(Proactor)，当回调handler时，表示IO操作已经完成；同步情况下(Reactor)，回调handler时，表示IO设备可以进行某个操作(can read or can write)。</p>
-
+        <p class="article-more-link">
+          <a href="/2017/04/06/reactor-I-O/#more">Read More</a>
+        </p>
       
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2017/04/06/reactor-I-O/" data-id="cjez4yjic000xnb2movbreof4" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2017/04/06/reactor-I-O/" data-id="cjf7ze99300110t2m6pnikjqr" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/java-IO/">java IO</a></li></ul>
@@ -738,7 +554,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

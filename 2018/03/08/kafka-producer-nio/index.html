@@ -91,8 +91,10 @@
       </header>
     
     <div class="article-entry" itemprop="articleBody">
-      
-        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>自kafka 0.8.2版本以后，kafka团队发布了新的java版本的client api以替代之前的scala版本的api。我们对kafka client端的分析都是建立在java版本的api基础之上。博主分析的kafka版本是0.11.0。</p>
+  
+    
+    
+      <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>自kafka 0.8.2版本以后，kafka团队发布了新的java版本的client api以替代之前的scala版本的api。我们对kafka client端的分析都是建立在java版本的api基础之上。博主分析的kafka版本是0.11.0。</p>
 <h2 id="Producer异步发送"><a href="#Producer异步发送" class="headerlink" title="Producer异步发送"></a>Producer异步发送</h2><p>0.8.2之前的scala客户端版本分别实现同步发送和异步发送两种方式。而在0.8.2之后的java版本中同步发送实际上也是通过异步发送间接实现的。</p>
 <p>异步发送实际上就是在客户端维护一个消息缓冲区，producer发送消息的时候先将消息保存到消息缓冲区，然后后台发送线程会批量将消息缓冲区的消息发送到broker。<br><img src="http://osjt45oaj.bkt.clouddn.com/kafka_producer.png" alt=""><br>上图我们可以看出kafkaProducer在需要进行消息发送的时候，先把消息放到本地队列，然后由IO线程Sender取出队列的消息，异步的将消息发送给kafka broker。这里的sender其实还看了另外一件事，就是从broker获取meta信息，metaData就是broker,topic和partition之间的映射关系,每一个topic下partion有哪些；partion在broker上是如何分布的；partion的的leader和follwer信息。</p>
 <p>从上面的producer的异布发送模型可以看出Sender每次从broker获取meta信息都会写到metaData中，然后kafkaProducer从metaData中获取这些信息，下面我们通过代码来看下metaData的结构。</p>
@@ -130,10 +132,11 @@
 <p>总之数据不能正常发送或者数据不同步时都人为metadata有问题，需要更新。</p>
 <p>还有一点注意的是：更新的时候，是从metadata保存的所有Node，或者说Broker中，选负载最小的那个，也就是当前接收请求最少的那个。向其发送MetadataRequest请求，获取新的Cluster对象。</p>
 
-      
-    </div>
+    
+  
+</div>
     <footer class="article-footer">
-      <a data-url="http://yoursite.com/2018/03/08/kafka-producer-nio/" data-id="cjez4yji7000rnb2m35frh7je" class="article-share-link">Share</a>
+      <a data-url="http://yoursite.com/2018/03/08/kafka-producer-nio/" data-id="cjf7ze98z000v0t2m60lr8rhm" class="article-share-link">Share</a>
       
       
   <ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/kafka/">kafka</a></li></ul>
@@ -185,7 +188,7 @@
   <div class="widget-wrap">
     <h3 class="widget-title">标签云</h3>
     <div class="widget tagcloud">
-      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 13.33px;">设计模式</a>
+      <a href="/tags/guava/" style="font-size: 13.33px;">guava</a> <a href="/tags/java/" style="font-size: 16.67px;">java</a> <a href="/tags/java-IO/" style="font-size: 10px;">java IO</a> <a href="/tags/jvm/" style="font-size: 10px;">jvm</a> <a href="/tags/kafka/" style="font-size: 20px;">kafka</a> <a href="/tags/redis/" style="font-size: 10px;">redis</a> <a href="/tags/并发/" style="font-size: 20px;">并发</a> <a href="/tags/设计模式/" style="font-size: 16.67px;">设计模式</a>
     </div>
   </div>
 

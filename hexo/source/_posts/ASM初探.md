@@ -1,0 +1,124 @@
+---
+title: ASM初探
+categories: java
+date: 2017-09-24 17:06:44
+tags: java
+---
+
+## 简介
+随着aop技术的兴起，动态代理得到越来越广泛的应用。下面我们就来聊一聊在java中实现动态代理都有哪些方式，关于动态代理的介绍可参考博主之前的一篇文章，其中介绍了一下JDK动态代理的使用方法和原理简介。动态代理说白了就是在程序运行期间，动态的改变一个类的行为或者生成一个新的类。我们知道JVM通过字节码的二进制信息加载类的，类的初始化过程第一步就是把class文件里所代表的静态存储结构转化为方法区的运行数据结构，当然加载过程只会进行一次。所以要动态的改变类的行为就需要我们遵循JVM的规范生成新的字节码。
+![](https://clouder123.oss-cn-beijing.aliyuncs.com/asm01.png
+)
+上图是网上别人画的一个动态生成类的原理图，很清晰的展示了动态代理的基本原理，在运行期生成新的字节码，然后类加载器完成类的初始化过程得到新类。
+
+## ASM
+
+下面我们来看一下如何在运行时期可以按照Java虚拟机规范对class文件的组织规则生成对应的二进制字节码。其实JDK提供了sun.misc.ProxyGenerator.generateProxyClass(String proxyName,class[] interfaces)底层方法来产生动态代理的字节码。
+除此之外，但这种实现现在已开源的解决方案有ASM和javaassist。
+
+ASM是一个Java字节码操控框架。ASM从class文件载入后，可以分析类信息，改变类的行为，也能够根据要求生成新类。它能够以二进制形式修改已有类或者动态生成类。ASM可以直接产生二进制class文件，也可以在类被加载入Java虚拟机之前动态改变类行为。
+
+ASM在创建class字节码的过程中，操纵是底层JVM的汇编指令，这要求ASM使用者要对class组织结构和JVM汇编指令有一定的了解。对于这些内容可以参考《JAVA虚拟机规范》。asm字节码增强技术主要是用来反射的时候提升性能的，如果单纯用jdk的反射调用，性能是非常低下的，而使用字节码增强技术后反射调用的时间已经基本可以与直接调用相当了。asm是一个轻量级的字节码框架，他的jar包仅几十k，它的核心类有以下几个：
+
+* ClassReader:根据字节码的规则解析编译过的class文件。
+* ClassWriter:对已解析的类进行增强，比如说修改类名、属性以及方法，以及生成新的类的字节码文件。
+* ClassAdapter:该类也实现了ClassVisitor接口，它将对它的方法调用委托给另一个ClassVisitor对象。
+
+我们可以先来看一下字节码的结构，这样可以很容易的理解ASM到底做了什么以及它为什么要这样设计。
+![](https://clouder123.oss-cn-beijing.aliyuncs.com/asm02.png
+)
+
+关于上图中各部分的含义看名字也能一目了然，这里重点说一下常量池部分，一个类的常量池占了它本身的绝大部分空间，常量池里除了包括字符串常量和数值常量，还包含指向字段和方法的引用。
+
+编译后的字节码文件与源文件的不同的在于：
+
+* 编译后的 java 类仅仅只 述一个类信息，但是一个 java 源文件可以包含几个java 类 ；
+* 编译后的 java 类不包含注释；
+* 编译后的 java 类不包含 package 和 import段，因此，在编译后的类中，所有的类型名称都必须使用全路径；
+* 编译后的 java 类包含一个常量池段 。（asm隐藏了与常量池相关的细节）
+
+字节码的操作工具有：
+
+* BCEL：Byte Code Engineering Library (BCEL)，这是Apache Software Foundation 的Jakarta 项目的一部分。BCEL是 Java classworking 最广泛使用的一种框架,它可以让您深入 JVM 汇编语言进行类操作的细节。BCEL与Javassist 有不同的处理字节码方法，BCEL在实际的JVM 指令层次上进行操作(BCEL拥有丰富的JVM 指令级支持)而Javassist 所强调的源代码级别的工作。
+* JBET：通过JBET(Java Binary Enhancement Tool )的API可对Class文件进行分解，重新组合，或被编辑。JBET也可以创建新的Class文件。JBET用一种结构化的方式来展现Javabinary (.class)文件的内容，并且可以很容易的进行修改。
+* javaassist：直接使用java编码，不需要了解jvm指令，其工作方式与 JVM 类装载器非常相似。
+
+ASM的优势在于：
+
+* ASM 具有简单、设计良好的 API，这些 API 易于使用；
+* ASM 有非常良好的开发文档，以及可以帮助简化开发的 Eclipse 插件；
+* ASM 支持 Java 6(ASM3)、Java7(ASM4)、Java(ASM5)；
+* ASM 很小、很快、很健壮；
+* ASM 有很大的用户群，可以帮助新手解决开发过程中遇到的问题；
+* ASM 的开源许可可以让你几乎以任何方式使用它；
+
+不说废话了，下面来看一下ASM的核心接口，ClassVisitor。
+
+```
+public interface ClassVisitor {
+    void visit(int var1, int var2, String var3, String var4, String var5, String[] var6);
+ 
+    void visitSource(String var1, String var2);
+ 
+    void visitOuterClass(String var1, String var2, String var3);
+ 
+    AnnotationVisitor visitAnnotation(String var1, boolean var2);
+ 
+    void visitAttribute(Attribute var1);
+ 
+    void visitInnerClass(String var1, String var2, String var3, int var4);
+ 
+    FieldVisitor visitField(int var1, String var2, String var3, String var4, Object var5);
+ 
+    MethodVisitor visitMethod(int var1, String var2, String var3, String var4, String[] var5);
+ 
+    void visitEnd();
+}
+```
+ClassVisitor把类的字节码所包含的信息组织成一个树状结构，在访问类结构中简单的段时， 是通过调用一个独立的方法来实现的，该方法的参数就是该段相关的内容，该方法的返回值 为 void。对长度任意并且较复杂的段进行访问时，是通过一个初始化方法返回一个辅助的 visitor 接口来实现，例如 visitAnnotation，visitField 以及 visitMethod，它们都返回与之对应 的接口 AnnotationVisitor，FieldVisitor 以及 MethodVisitor。
+
+对 ClassVisitor 接口中方法的调用必须遵循下面文档定义的顺序 ：visit visitSource? visitOuterClass? ( visitAnnotation | visitAttribute )*( visitInnerClass | visitField | visitMethod ) visitEnd (?表示至多1次，\表示任意次数)。
+
+这其实很好理解，类的字节码是按照一定规则排列的。同样，对MethodVisitor接口中方法的调用必须遵循下面文档定义的顺序：
+( visitTryCatchBlock | visitLabel | visitFrame | visitXxxInsn | visitLocalVariable | visitLineNumber )*
+visitMaxs )?
+visitEnd
+
+解析一个已存在的类仅需要ClassReader这个组件，它对字节码的每一段解析都可以看成产生一个事件。ClassWriter实现了ClassVisitor接口，实现了ClassVisitor接口中每个visitxx方法，当捕获对应事件时，可以将字节码写到指定位置，ASM是可以看成一个观察者模式的实现，ClassReader可以接收一个ClassWriter作为它的观察者，当ClassReader解析字节码的每一段产生一个事件时，会触发ClassWriter中对应的visitxx方法。
+
+```
+byte[] b1 = ...;
+ClassWriter cw = new ClassWriter();
+ClassReader cr = new ClassReader(b1);
+cr.accept(cw, 0);
+byte[] b2 = cw.toByteArray();
+```
+上面的代码复制b1创建一个新的类b2,实际上是将一个字节数组复制到另一个字节数组。这个过程可能看起来意义不大，但是如果我们加上一个新的组件ClassAdapter那就会变得很有趣。ClassAdapter也是实现了ClassVisitor接口，它相当于一个事件过滤器，通过自定义visitxx方法，同样再获取ClassReader产生的事件时执行相应的visitxx方法，达到按照开发者意愿修改字节码的目的，最后将事件传给ClassWriter将修改后的字节码落地。
+
+```
+public class ChangeVersionAdapter extends ClassAdapter {
+public ChangeVersionAdapter(ClassVisitor cv) { super(cv);
+}
+@Override
+public void visit(int version, int access, String name,
+String signature, String superName, String[] interfaces) {
+cv.visit(V1_5, access, name, signature, superName, interfaces); }
+}
+```
+上面的代码复制b1创建一个新的类b2,实际上是将一个字节数组复制到另一个字节数组。这个过程可能看起来意义不大，但是如果我们加上一个新的组件ClassAdapter那就会变得很有趣。ClassAdapter也是实现了ClassVisitor接口，它相当于一个事件过滤器，通过自定义visitxx方法，同样再获取ClassReader产生的事件时执行相应的visitxx方法，达到按照开发者意愿修改字节码的目的，最后将事件传给ClassWriter将修改后的字节码落地。
+
+```
+byte[] b1 = ...
+ClassReader cr = new ClassReader(b1);
+ClassWriter cw = new ClassWriter(cr, 0);
+ChangeVersionAdapter ca = new ChangeVersionAdapter(cw); cr.accept(ca, 0);
+byte[] b2 = cw.toByteArray();
+```
+上面代码中ca只在字节码的version段触发了一个修改类版本号的动作，剩余部分都直接转发给ClassWriter。
+
+ClassAdapter是事件的转发者，转化过程形成一条classReader-classAdapter-classWriter的转换链，但一个转换链条没必要是线性的，更复杂的情况是你可以编写一个 ClassVisitor，然后同时转发所有的方法调用给多个 ClassVisitor。
+![](https://clouder123.oss-cn-beijing.aliyuncs.com/asm3.png
+)
+
+这样需要开发者在整体性能和低耦合之间做一个权衡。上面就是asm的主要组件及大致原理，它实际上相当于做了一个字节码层面的aop,基于观察者模式的事件触发，原理很简单，掌握了它的规则，使用起来也并不难。
+

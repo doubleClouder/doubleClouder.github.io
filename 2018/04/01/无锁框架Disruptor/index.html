@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="Disruptor,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言LMAX是一种新型零售金融交易平台,它能够以很低的延迟产生大量交易。它能够在一个线程里每秒处理六百万的订单，业务逻辑处理完全运行在内存中，而它的核心就是Disruptor。Disruptor是开源的并发框架，它能够在无锁的情况下实现网络的Queue并发操作。 Disruptor设计原则 尽量保持单一写 避免使用锁，无锁化（volatile + CAS） 避免伪共享  为什么要无锁在多线程下，往">
+<meta name="keywords" content="Disruptor">
+<meta property="og:type" content="article">
+<meta property="og:title" content="无锁框架Disruptor">
+<meta property="og:url" content="http://yoursite.com/2018/04/01/无锁框架Disruptor/index.html">
+<meta property="og:site_name" content="宁静致远">
+<meta property="og:description" content="前言LMAX是一种新型零售金融交易平台,它能够以很低的延迟产生大量交易。它能够在一个线程里每秒处理六百万的订单，业务逻辑处理完全运行在内存中，而它的核心就是Disruptor。Disruptor是开源的并发框架，它能够在无锁的情况下实现网络的Queue并发操作。 Disruptor设计原则 尽量保持单一写 避免使用锁，无锁化（volatile + CAS） 避免伪共享  为什么要无锁在多线程下，往">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/falseSharing.png">
+<meta property="og:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/disruptor.png">
+<meta property="og:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/multWriterReader.png">
+<meta property="og:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/multWriterWrite.png">
+<meta property="og:updated_time" content="2019-07-23T09:04:03.989Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="无锁框架Disruptor">
+<meta name="twitter:description" content="前言LMAX是一种新型零售金融交易平台,它能够以很低的延迟产生大量交易。它能够在一个线程里每秒处理六百万的订单，业务逻辑处理完全运行在内存中，而它的核心就是Disruptor。Disruptor是开源的并发框架，它能够在无锁的情况下实现网络的Queue并发操作。 Disruptor设计原则 尽量保持单一写 避免使用锁，无锁化（volatile + CAS） 避免伪共享  为什么要无锁在多线程下，往">
+<meta name="twitter:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/falseSharing.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2018/04/01/无锁框架Disruptor/">
+
+
+
+
+
+  <title>无锁框架Disruptor | 宁静致远</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">宁静致远</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">波起潮落守浮沉</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/04/01/无锁框架Disruptor/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Zhu Sheng">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="宁静致远">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">无锁框架Disruptor</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-04-01T21:02:40+08:00">
+                2018-04-01
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>LMAX是一种新型零售金融交易平台,它能够以很低的延迟产生大量交易。它能够在一个线程里每秒处理六百万的订单，业务逻辑处理完全运行在内存中，而它的核心就是Disruptor。Disruptor是开源的并发框架，它能够在无锁的情况下实现网络的Queue并发操作。</p>
+<h2 id="Disruptor设计原则"><a href="#Disruptor设计原则" class="headerlink" title="Disruptor设计原则"></a>Disruptor设计原则</h2><ul>
+<li>尽量保持单一写</li>
+<li>避免使用锁，无锁化（volatile + CAS）</li>
+<li>避免伪共享</li>
+</ul>
+<h3 id="为什么要无锁"><a href="#为什么要无锁" class="headerlink" title="为什么要无锁"></a>为什么要无锁</h3><p>在多线程下，往往涉及对资源的共享，比如内存、文件、IO等，为了共享资源访问时的安全，我们需要对共享资源加锁，加锁保证了原子性和内存可见性；（原子性保证资源的争用更新；可见性保证某一线程对内存的修改对其他线程是可见的。）但是锁带来一个不可忽视的问题——性能问题，线程因为竞争不到锁而被挂起，获取到锁线程恢复。这个过程会带来很大的开销，同时cpu上下文的切换，可能会造成缓存和指令的丢失。在多线程情况下，加锁的开销往往比无锁多了好几个数量级。</p>
+<p>在某些情况，我们通常会考虑用CAS替代锁从而避免锁带来的巨大开销，相对锁而言，CAS是高效的，因为它没有线程上下文切换。但是如果竟态条件一直不能满足，线程就会不停的自旋，这同样会带来性能开销。</p>
+<h3 id="避免伪共享"><a href="#避免伪共享" class="headerlink" title="避免伪共享"></a>避免伪共享</h3><p>在之前的ArrayBlockingQueue分析中，我们会发现它的三个成员takeIndex,putTndex,count很容易放入一个缓存行，这就会带来伪共享问题，关于伪共享的问题网上的分析已经非常之多，这里不多描述。<br><img src="https://clouder123.oss-cn-beijing.aliyuncs.com/falseSharing.png" alt=""></p>
+<h2 id="原理简介"><a href="#原理简介" class="headerlink" title="原理简介"></a>原理简介</h2><p>先来看下disruptor中的一些核心组件：<br><img src="https://clouder123.oss-cn-beijing.aliyuncs.com/disruptor.png" alt=""></p>
+<ul>
+<li>RingBuffer</li>
+</ul>
+<p>环形缓冲区，它是disruptor的核心容器。本质上还是一个数组，通过取余操作，形成一个环形数组；初始化RingBuffer时，所有数组元素均被初始化，后续只会更新数组元素；RingBuffer本身并没有锁，生产者和消费者申请操作位置后直接在数据上操作一个生产者时候，申请位置也不用锁<br>多个生产者时候，通过CAS控制；</p>
+<ul>
+<li>Sequence</li>
+</ul>
+<p>通过顺序递增的序号来编号管理通过其进行交换的数据（事件），对数据(事件)的处理过程总是沿着序号逐个递增处理。一个 Sequence 用于跟踪标识某个特定的事件处理者( RingBuffer/Consumer )的处理进度。虽然一个 AtomicLong 也可以用于标识进度，但定义 Sequence 来负责该问题还有另一个目的，那就是防止不同的 Sequence 之间的CPU缓存伪共享(Flase Sharing)问题。</p>
+<ul>
+<li>Sequence Barrier</li>
+</ul>
+<p>用于保持对RingBuffer的已发布Sequence 和Consumer依赖的其它Consumer的 Sequence 的引用。 Sequence Barrier 还定义了决定 Consumer 是否还有可处理的事件的逻辑。</p>
+<ul>
+<li>Wait Strategy 定义 Consumer 如何进行等待下一个事件的策略。</li>
+<li>Event 生产者和消费者之间进行交换的数据被称为事件(Event)。</li>
+<li>EventProcessor 持有特定消费者(Consumer)的 Sequence，并提供用于调用事件处理实现的事件循环(Event Loop)。</li>
+<li>EventHandler：Disruptor 定义的事件处理接口，由用户实现，用于处理事件，是 Consumer 的真正实现。</li>
+</ul>
+<p>了解disruptor中核心组件的含义之后，我们可能仍然对disruptor没有一个整体的认识。下面我们分析一下disruptor的生产流程。</p>
+<h2 id="生产流程"><a href="#生产流程" class="headerlink" title="生产流程"></a>生产流程</h2><p>单一生产者的情况下，生产端不需要并发控制。首先申请写入m个元素，若是有m个元素可以写入，则返回最大的序列号（这儿主要判断是否会覆盖未读的元素）若是返回的正确，则生产者开始写入元素。</p>
+<h3 id="多个生产者"><a href="#多个生产者" class="headerlink" title="多个生产者"></a>多个生产者</h3><p>多个生产者情况会遇到，会有多个生产者同时写入同一个位置的问题；disruptor的做法是每个线程获取不同的一段数组空间进行操作。这个通过CAS很容易达到（这跟JVM中创建对象内存分配策略tlab类似）。除此之外，这里仍然有个问题：如何防止读取的时候，读到还未写的元素。Disruptor在多个生产者的情况下，引入了一个与Ring Buffer大小相同的buffer：available Buffer。当某个位置写入成功的时候，便把availble Buffer相应的位置置位，标记为写入成功。读取的时候，会遍历available Buffer，来判断元素是否已经就绪。<br>读的过程：</p>
+<ul>
+<li>申请读取到序号n</li>
+<li>若writer cursor &gt;= n，这时仍然无法确定连续可读的最大下标。从reader cursor开始读取available Buffer，一直查到第一个不可用的元素，然后返回最大连续可读元素的位置；</li>
+<li>消费者读取元素.<br><img src="https://clouder123.oss-cn-beijing.aliyuncs.com/multWriterReader.png" alt=""><br>如图所示，读线程读到下标为2的元素，三个线程Writer1/Writer2/Writer3正在向RingBuffer相应位置写数据，写线程被分配到的最大元素下标是11。读线程申请读取到下标从3到11的元素，判断writer cursor&gt;=11。然后开始读取availableBuffer，从3开始，往后读取，发现下标为7的元素没有生产成功，于是WaitFor(11)返回6。然后，消费者读取下标从3到6共计4个元素。</li>
+</ul>
+<p>写的过程：<br><img src="https://clouder123.oss-cn-beijing.aliyuncs.com/multWriterWrite.png" alt=""></p>
+<ul>
+<li>申请写入m个元素；</li>
+<li>若是有m个元素可以写入，则返回最大的序列号。每个生产者被分配到一段独享的空间。</li>
+<li>生产者写入元素，写入元素的同时设置available Buffer里面相应的位置，以标记自己哪些位置是已经写入成功的。</li>
+</ul>
+<h2 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h2><p>RingBuffer</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line">abstract class RingBufferPad</span><br><span class="line">&#123;</span><br><span class="line">    protected long p1, p2, p3, p4, p5, p6, p7;</span><br><span class="line">&#125;</span><br><span class="line"> </span><br><span class="line">abstract class RingBufferFields&lt;E&gt; extends RingBufferPad</span><br><span class="line">&#123;</span><br><span class="line">    //填充数组头尾数量</span><br><span class="line">    private static final int BUFFER_PAD;</span><br><span class="line">    //数组的第一个元素位置，去掉填充值</span><br><span class="line">    private static final long REF_ARRAY_BASE;</span><br><span class="line">    //数组元素每个的引用大小的N次方</span><br><span class="line">    private static final int REF_ELEMENT_SHIFT;</span><br><span class="line">    private static final Unsafe UNSAFE = Util.getUnsafe();</span><br><span class="line">    static</span><br><span class="line">    &#123;</span><br><span class="line">        //每个元素引用占用的大小，32位是4，64位是8</span><br><span class="line">        final int scale = UNSAFE.arrayIndexScale(Object[].class);</span><br><span class="line">        if (4 == scale)</span><br><span class="line">        &#123;</span><br><span class="line">            //下面会多次左移，表示乘上每个元素大小</span><br><span class="line">            REF_ELEMENT_SHIFT = 2;</span><br><span class="line">        &#125;</span><br><span class="line">        else if (8 == scale)</span><br><span class="line">        &#123;</span><br><span class="line">            REF_ELEMENT_SHIFT = 3;</span><br><span class="line">        &#125;</span><br><span class="line">        else</span><br><span class="line">        &#123;</span><br><span class="line">            throw new IllegalStateException(&quot;Unknown pointer size&quot;);</span><br><span class="line">        &#125;</span><br><span class="line">        BUFFER_PAD = 128 / scale;</span><br><span class="line">        //包含PAD大小的数据</span><br><span class="line">        REF_ARRAY_BASE = UNSAFE.arrayBaseOffset(Object[].class) + (BUFFER_PAD &lt;&lt; REF_ELEMENT_SHIFT);</span><br><span class="line">    &#125;</span><br><span class="line">    //取余公式：m % 2^n = m &amp; ( 2^n - 1 )</span><br><span class="line">    private final long indexMask;</span><br><span class="line">    private final Object[] entries;</span><br><span class="line">    //RingBuffer的大小</span><br><span class="line">    protected final int bufferSize;</span><br><span class="line">    protected final Sequencer sequencer;</span><br><span class="line"> </span><br><span class="line">    RingBufferFields(EventFactory&lt;E&gt; eventFactory, Sequencer sequencer)</span><br><span class="line">    &#123;</span><br><span class="line">        this.sequencer = sequencer;</span><br><span class="line">        this.bufferSize = sequencer.getBufferSize();</span><br><span class="line">        if (bufferSize &lt; 1)</span><br><span class="line">        &#123;</span><br><span class="line">            throw new IllegalArgumentException(&quot;bufferSize must not be less than 1&quot;);</span><br><span class="line">        &#125;</span><br><span class="line">        if (Integer.bitCount(bufferSize) != 1)</span><br><span class="line">        &#123;</span><br><span class="line">            throw new IllegalArgumentException(&quot;bufferSize must be a power of 2&quot;);</span><br><span class="line">        &#125;</span><br><span class="line"> </span><br><span class="line">        this.indexMask = bufferSize - 1;</span><br><span class="line">        this.entries = new Object[sequencer.getBufferSize() + 2 * BUFFER_PAD];</span><br><span class="line">        fill(eventFactory);</span><br><span class="line">    &#125;</span><br><span class="line"> </span><br><span class="line">    //初始化时候会将每个位置都填充，之后，只会修改值或者修改引用</span><br><span class="line">    private void fill(EventFactory&lt;E&gt; eventFactory)</span><br><span class="line">    &#123;</span><br><span class="line">        for (int i = 0; i &lt; bufferSize; i++)</span><br><span class="line">        &#123;</span><br><span class="line">            entries[BUFFER_PAD + i] = eventFactory.newInstance();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"> </span><br><span class="line">    @SuppressWarnings(&quot;unchecked&quot;)</span><br><span class="line">    protected final E elementAt(long sequence)</span><br><span class="line">    &#123;</span><br><span class="line">        //每个元素的位置 = 数组基址+数组头+引用偏移</span><br><span class="line">        return (E) UNSAFE.getObject(entries, REF_ARRAY_BASE + ((sequence &amp; indexMask) &lt;&lt; REF_ELEMENT_SHIFT));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>Sequence其实就是一个64位的volatile值，内部通过缓存行填充，避免多线程访问sequence的伪共享问题。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line">class LhsPadding</span><br><span class="line">&#123;</span><br><span class="line">    //前填充</span><br><span class="line">    protected long p1, p2, p3, p4, p5, p6, p7;</span><br><span class="line">&#125;</span><br><span class="line"> </span><br><span class="line">class Value extends LhsPadding</span><br><span class="line">&#123;</span><br><span class="line">    //真正用的值，是volatile</span><br><span class="line">    protected volatile long value;</span><br><span class="line">&#125;</span><br><span class="line"> </span><br><span class="line">class RhsPadding extends Value</span><br><span class="line">&#123;</span><br><span class="line">    //后填充</span><br><span class="line">    protected long p9, p10, p11, p12, p13, p14, p15;</span><br><span class="line">&#125;</span><br><span class="line"> </span><br><span class="line">public class Sequence extends RhsPadding</span><br><span class="line">&#123;</span><br><span class="line">    static final long INITIAL_VALUE = -1L;</span><br><span class="line">    private static final Unsafe UNSAFE;</span><br><span class="line">    private static final long VALUE_OFFSET;</span><br><span class="line"> </span><br><span class="line">    static</span><br><span class="line">    &#123;</span><br><span class="line">        UNSAFE = Util.getUnsafe();</span><br><span class="line">        try</span><br><span class="line">        &#123;</span><br><span class="line">            VALUE_OFFSET = UNSAFE.objectFieldOffset(Value.class.getDeclaredField(&quot;value&quot;));</span><br><span class="line">        &#125;</span><br><span class="line">        catch (final Exception e)</span><br><span class="line">        &#123;</span><br><span class="line">            throw new RuntimeException(e);</span><br><span class="line">        &#125;</span><br></pre></td></tr></table></figure>
+<p>SingleProducerSequencer单生产者的核心类，写不存在并发.</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">public long next(int n)</span><br><span class="line">&#123;</span><br><span class="line">    if (n &lt; 1)</span><br><span class="line">    &#123;</span><br><span class="line">        throw new IllegalArgumentException(&quot;n must be &gt; 0&quot;);</span><br><span class="line">    &#125;</span><br><span class="line">    long nextValue = this.nextValue;</span><br><span class="line">    long nextSequence = nextValue + n;</span><br><span class="line">    long wrapPoint = nextSequence - bufferSize;</span><br><span class="line">    long cachedGatingSequence = this.cachedValue;</span><br><span class="line">     </span><br><span class="line">    if (wrapPoint &gt; cachedGatingSequence || cachedGatingSequence &gt; nextValue)</span><br><span class="line">    &#123;</span><br><span class="line">        cursor.setVolatile(nextValue);</span><br><span class="line">        long minSequence;</span><br><span class="line">        //只要wrapPoint大于最小的gatingSequences，那么不断唤醒消费者去消费，并利用LockSupport让出CPU，直到wrapPoint不大于最小的gatingSequences</span><br><span class="line">        while (wrapPoint &gt; (minSequence = Util.getMinimumSequence(gatingSequences, nextValue)))</span><br><span class="line">        &#123;</span><br><span class="line">            waitStrategy.signalAllWhenBlocking();</span><br><span class="line">            LockSupport.parkNanos(1L);</span><br><span class="line">        &#125;</span><br><span class="line"> </span><br><span class="line">        this.cachedValue = minSequence;</span><br><span class="line">    &#125;</span><br><span class="line">    this.nextValue = nextSequence;</span><br><span class="line">    return nextSequence;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>多线程写核心类</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line">public long next(int n)</span><br><span class="line">&#123;</span><br><span class="line">    if (n &lt; 1)</span><br><span class="line">    &#123;</span><br><span class="line">        throw new IllegalArgumentException(&quot;n must be &gt; 0&quot;);</span><br><span class="line">    &#125;</span><br><span class="line">    long current;</span><br><span class="line">    long next;</span><br><span class="line"> </span><br><span class="line">    do</span><br><span class="line">    &#123;</span><br><span class="line">        current = cursor.get();</span><br><span class="line">        next = current + n;</span><br><span class="line">        long wrapPoint = next - bufferSize;</span><br><span class="line">        long cachedGatingSequence = gatingSequenceCache.get();</span><br><span class="line">        if (wrapPoint &gt; cachedGatingSequence || cachedGatingSequence &gt; current)</span><br><span class="line">        &#123;</span><br><span class="line">            long gatingSequence = Util.getMinimumSequence(gatingSequences, current);</span><br><span class="line"> </span><br><span class="line">            if (wrapPoint &gt; gatingSequence)</span><br><span class="line">            &#123;</span><br><span class="line">                waitStrategy.signalAllWhenBlocking();</span><br><span class="line">                LockSupport.parkNanos(1); // TODO, should we spin based on the wait strategy?</span><br><span class="line">                continue;</span><br><span class="line">            &#125;</span><br><span class="line"> </span><br><span class="line">            gatingSequenceCache.set(gatingSequence);</span><br><span class="line">        &#125;</span><br><span class="line">        //区别是这里，进行CAS的操作</span><br><span class="line">        else if (cursor.compareAndSet(current, next))</span><br><span class="line">        &#123;</span><br><span class="line">            break;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    while (true);</span><br><span class="line"> </span><br><span class="line">    return next;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>waitStrategy。 Disruptor中有很多需要等待的地方，比如生产者需要等待可用的一个RingBuffer上的槽位，比如消费者1与消费者2之间有依赖关系，都依赖于WaitStrategy。disruptor实现了如下几种等待策略</p>
+<ul>
+<li>BlockingWaitStrategy：利用锁、等待机制的策略</li>
+<li>SleepingWaitStrategy：初始重试200，根据重试的次数，选择盲等或者sleep</li>
+<li>BusySpinWaitStrategy：不停的自旋，耗费CPU性能</li>
+<li>YieldingWaitStrategy：直接调用Thread.yield，延时不可控</li>
+</ul>
+<p>SequenceBarrier是消费者与Ringbuffer之间建立消费关系的媒介。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">public long waitFor(final long sequence)</span><br><span class="line">    throws AlertException, InterruptedException, TimeoutException</span><br><span class="line">&#123;</span><br><span class="line">    checkAlert();</span><br><span class="line"> </span><br><span class="line">    long availableSequence = waitStrategy.waitFor(sequence, cursorSequence, dependentSequence, this);</span><br><span class="line"> </span><br><span class="line">    if (availableSequence &lt; sequence)</span><br><span class="line">    &#123;</span><br><span class="line">        return availableSequence;</span><br><span class="line">    &#125;</span><br><span class="line"> </span><br><span class="line">    return sequencer.getHighestPublishedSequence(sequence, availableSequence);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>disruptor为什么快，因为它最大限度的利用起计算机资源，同时避免了锁的开销，线程预分配内存，批量处理，最大限度提高并行度；而且避免伪共享。</p>
+<p>参考：</p>
+<p><a href="https://tech.meituan.com/2016/11/18/disruptor.html" target="_blank" rel="noopener">高性能队列——Disruptor</a></p>
+<p><a href="http://www.cnblogs.com/haiq/p/4112689.html" target="_blank" rel="noopener">Disruptor 极速体验
+</a></p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/Disruptor/" rel="tag"># Disruptor</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/03/08/weakHashMap与GC/" rel="next" title="weakHashMap与GC">
+                <i class="fa fa-chevron-left"></i> weakHashMap与GC
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">Zhu Sheng</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">26</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Disruptor设计原则"><span class="nav-number">2.</span> <span class="nav-text">Disruptor设计原则</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#为什么要无锁"><span class="nav-number">2.1.</span> <span class="nav-text">为什么要无锁</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#避免伪共享"><span class="nav-number">2.2.</span> <span class="nav-text">避免伪共享</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#原理简介"><span class="nav-number">3.</span> <span class="nav-text">原理简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#生产流程"><span class="nav-number">4.</span> <span class="nav-text">生产流程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#多个生产者"><span class="nav-number">4.1.</span> <span class="nav-text">多个生产者</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#数据结构"><span class="nav-number">5.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#总结"><span class="nav-number">6.</span> <span class="nav-text">总结</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Zhu Sheng</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="java,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="简介随着aop技术的兴起，动态代理得到越来越广泛的应用。下面我们就来聊一聊在java中实现动态代理都有哪些方式，关于动态代理的介绍可参考博主之前的一篇文章，其中介绍了一下JDK动态代理的使用方法和原理简介。动态代理说白了就是在程序运行期间，动态的改变一个类的行为或者生成一个新的类。我们知道JVM通过字节码的二进制信息加载类的，类的初始化过程第一步就是把class文件里所代表的静态存储结构转化为方法">
+<meta name="keywords" content="java">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ASM初探">
+<meta property="og:url" content="http://yoursite.com/2017/09/24/ASM初探/index.html">
+<meta property="og:site_name" content="宁静致远">
+<meta property="og:description" content="简介随着aop技术的兴起，动态代理得到越来越广泛的应用。下面我们就来聊一聊在java中实现动态代理都有哪些方式，关于动态代理的介绍可参考博主之前的一篇文章，其中介绍了一下JDK动态代理的使用方法和原理简介。动态代理说白了就是在程序运行期间，动态的改变一个类的行为或者生成一个新的类。我们知道JVM通过字节码的二进制信息加载类的，类的初始化过程第一步就是把class文件里所代表的静态存储结构转化为方法">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/asm01.png">
+<meta property="og:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/asm02.png">
+<meta property="og:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/asm3.png">
+<meta property="og:updated_time" content="2019-07-24T09:41:55.575Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="ASM初探">
+<meta name="twitter:description" content="简介随着aop技术的兴起，动态代理得到越来越广泛的应用。下面我们就来聊一聊在java中实现动态代理都有哪些方式，关于动态代理的介绍可参考博主之前的一篇文章，其中介绍了一下JDK动态代理的使用方法和原理简介。动态代理说白了就是在程序运行期间，动态的改变一个类的行为或者生成一个新的类。我们知道JVM通过字节码的二进制信息加载类的，类的初始化过程第一步就是把class文件里所代表的静态存储结构转化为方法">
+<meta name="twitter:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/asm01.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2017/09/24/ASM初探/">
+
+
+
+
+
+  <title>ASM初探 | 宁静致远</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">宁静致远</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">波起潮落守浮沉</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/09/24/ASM初探/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Zhu Sheng">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="宁静致远">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">ASM初探</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-09-24T17:06:44+08:00">
+                2017-09-24
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/java/" itemprop="url" rel="index">
+                    <span itemprop="name">java</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>随着aop技术的兴起，动态代理得到越来越广泛的应用。下面我们就来聊一聊在java中实现动态代理都有哪些方式，关于动态代理的介绍可参考博主之前的一篇文章，其中介绍了一下JDK动态代理的使用方法和原理简介。动态代理说白了就是在程序运行期间，动态的改变一个类的行为或者生成一个新的类。我们知道JVM通过字节码的二进制信息加载类的，类的初始化过程第一步就是把class文件里所代表的静态存储结构转化为方法区的运行数据结构，当然加载过程只会进行一次。所以要动态的改变类的行为就需要我们遵循JVM的规范生成新的字节码。<br><img src="https://clouder123.oss-cn-beijing.aliyuncs.com/asm01.png" alt=""><br>上图是网上别人画的一个动态生成类的原理图，很清晰的展示了动态代理的基本原理，在运行期生成新的字节码，然后类加载器完成类的初始化过程得到新类。</p>
+<h2 id="ASM"><a href="#ASM" class="headerlink" title="ASM"></a>ASM</h2><p>下面我们来看一下如何在运行时期可以按照Java虚拟机规范对class文件的组织规则生成对应的二进制字节码。其实JDK提供了sun.misc.ProxyGenerator.generateProxyClass(String proxyName,class[] interfaces)底层方法来产生动态代理的字节码。<br>除此之外，但这种实现现在已开源的解决方案有ASM和javaassist。</p>
+<p>ASM是一个Java字节码操控框架。ASM从class文件载入后，可以分析类信息，改变类的行为，也能够根据要求生成新类。它能够以二进制形式修改已有类或者动态生成类。ASM可以直接产生二进制class文件，也可以在类被加载入Java虚拟机之前动态改变类行为。</p>
+<p>ASM在创建class字节码的过程中，操纵是底层JVM的汇编指令，这要求ASM使用者要对class组织结构和JVM汇编指令有一定的了解。对于这些内容可以参考《JAVA虚拟机规范》。asm字节码增强技术主要是用来反射的时候提升性能的，如果单纯用jdk的反射调用，性能是非常低下的，而使用字节码增强技术后反射调用的时间已经基本可以与直接调用相当了。asm是一个轻量级的字节码框架，他的jar包仅几十k，它的核心类有以下几个：</p>
+<ul>
+<li>ClassReader:根据字节码的规则解析编译过的class文件。</li>
+<li>ClassWriter:对已解析的类进行增强，比如说修改类名、属性以及方法，以及生成新的类的字节码文件。</li>
+<li>ClassAdapter:该类也实现了ClassVisitor接口，它将对它的方法调用委托给另一个ClassVisitor对象。</li>
+</ul>
+<p>我们可以先来看一下字节码的结构，这样可以很容易的理解ASM到底做了什么以及它为什么要这样设计。<br><img src="https://clouder123.oss-cn-beijing.aliyuncs.com/asm02.png" alt=""></p>
+<p>关于上图中各部分的含义看名字也能一目了然，这里重点说一下常量池部分，一个类的常量池占了它本身的绝大部分空间，常量池里除了包括字符串常量和数值常量，还包含指向字段和方法的引用。</p>
+<p>编译后的字节码文件与源文件的不同的在于：</p>
+<ul>
+<li>编译后的 java 类仅仅只 述一个类信息，但是一个 java 源文件可以包含几个java 类 ；</li>
+<li>编译后的 java 类不包含注释；</li>
+<li>编译后的 java 类不包含 package 和 import段，因此，在编译后的类中，所有的类型名称都必须使用全路径；</li>
+<li>编译后的 java 类包含一个常量池段 。（asm隐藏了与常量池相关的细节）</li>
+</ul>
+<p>字节码的操作工具有：</p>
+<ul>
+<li>BCEL：Byte Code Engineering Library (BCEL)，这是Apache Software Foundation 的Jakarta 项目的一部分。BCEL是 Java classworking 最广泛使用的一种框架,它可以让您深入 JVM 汇编语言进行类操作的细节。BCEL与Javassist 有不同的处理字节码方法，BCEL在实际的JVM 指令层次上进行操作(BCEL拥有丰富的JVM 指令级支持)而Javassist 所强调的源代码级别的工作。</li>
+<li>JBET：通过JBET(Java Binary Enhancement Tool )的API可对Class文件进行分解，重新组合，或被编辑。JBET也可以创建新的Class文件。JBET用一种结构化的方式来展现Javabinary (.class)文件的内容，并且可以很容易的进行修改。</li>
+<li>javaassist：直接使用java编码，不需要了解jvm指令，其工作方式与 JVM 类装载器非常相似。</li>
+</ul>
+<p>ASM的优势在于：</p>
+<ul>
+<li>ASM 具有简单、设计良好的 API，这些 API 易于使用；</li>
+<li>ASM 有非常良好的开发文档，以及可以帮助简化开发的 Eclipse 插件；</li>
+<li>ASM 支持 Java 6(ASM3)、Java7(ASM4)、Java(ASM5)；</li>
+<li>ASM 很小、很快、很健壮；</li>
+<li>ASM 有很大的用户群，可以帮助新手解决开发过程中遇到的问题；</li>
+<li>ASM 的开源许可可以让你几乎以任何方式使用它；</li>
+</ul>
+<p>不说废话了，下面来看一下ASM的核心接口，ClassVisitor。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">public interface ClassVisitor &#123;</span><br><span class="line">    void visit(int var1, int var2, String var3, String var4, String var5, String[] var6);</span><br><span class="line"> </span><br><span class="line">    void visitSource(String var1, String var2);</span><br><span class="line"> </span><br><span class="line">    void visitOuterClass(String var1, String var2, String var3);</span><br><span class="line"> </span><br><span class="line">    AnnotationVisitor visitAnnotation(String var1, boolean var2);</span><br><span class="line"> </span><br><span class="line">    void visitAttribute(Attribute var1);</span><br><span class="line"> </span><br><span class="line">    void visitInnerClass(String var1, String var2, String var3, int var4);</span><br><span class="line"> </span><br><span class="line">    FieldVisitor visitField(int var1, String var2, String var3, String var4, Object var5);</span><br><span class="line"> </span><br><span class="line">    MethodVisitor visitMethod(int var1, String var2, String var3, String var4, String[] var5);</span><br><span class="line"> </span><br><span class="line">    void visitEnd();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>ClassVisitor把类的字节码所包含的信息组织成一个树状结构，在访问类结构中简单的段时， 是通过调用一个独立的方法来实现的，该方法的参数就是该段相关的内容，该方法的返回值 为 void。对长度任意并且较复杂的段进行访问时，是通过一个初始化方法返回一个辅助的 visitor 接口来实现，例如 visitAnnotation，visitField 以及 visitMethod，它们都返回与之对应 的接口 AnnotationVisitor，FieldVisitor 以及 MethodVisitor。</p>
+<p>对 ClassVisitor 接口中方法的调用必须遵循下面文档定义的顺序 ：visit visitSource? visitOuterClass? ( visitAnnotation | visitAttribute )*( visitInnerClass | visitField | visitMethod ) visitEnd (?表示至多1次，\表示任意次数)。</p>
+<p>这其实很好理解，类的字节码是按照一定规则排列的。同样，对MethodVisitor接口中方法的调用必须遵循下面文档定义的顺序：<br>( visitTryCatchBlock | visitLabel | visitFrame | visitXxxInsn | visitLocalVariable | visitLineNumber )*<br>visitMaxs )?<br>visitEnd</p>
+<p>解析一个已存在的类仅需要ClassReader这个组件，它对字节码的每一段解析都可以看成产生一个事件。ClassWriter实现了ClassVisitor接口，实现了ClassVisitor接口中每个visitxx方法，当捕获对应事件时，可以将字节码写到指定位置，ASM是可以看成一个观察者模式的实现，ClassReader可以接收一个ClassWriter作为它的观察者，当ClassReader解析字节码的每一段产生一个事件时，会触发ClassWriter中对应的visitxx方法。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">byte[] b1 = ...;</span><br><span class="line">ClassWriter cw = new ClassWriter();</span><br><span class="line">ClassReader cr = new ClassReader(b1);</span><br><span class="line">cr.accept(cw, 0);</span><br><span class="line">byte[] b2 = cw.toByteArray();</span><br></pre></td></tr></table></figure>
+<p>上面的代码复制b1创建一个新的类b2,实际上是将一个字节数组复制到另一个字节数组。这个过程可能看起来意义不大，但是如果我们加上一个新的组件ClassAdapter那就会变得很有趣。ClassAdapter也是实现了ClassVisitor接口，它相当于一个事件过滤器，通过自定义visitxx方法，同样再获取ClassReader产生的事件时执行相应的visitxx方法，达到按照开发者意愿修改字节码的目的，最后将事件传给ClassWriter将修改后的字节码落地。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">public class ChangeVersionAdapter extends ClassAdapter &#123;</span><br><span class="line">public ChangeVersionAdapter(ClassVisitor cv) &#123; super(cv);</span><br><span class="line">&#125;</span><br><span class="line">@Override</span><br><span class="line">public void visit(int version, int access, String name,</span><br><span class="line">String signature, String superName, String[] interfaces) &#123;</span><br><span class="line">cv.visit(V1_5, access, name, signature, superName, interfaces); &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面的代码复制b1创建一个新的类b2,实际上是将一个字节数组复制到另一个字节数组。这个过程可能看起来意义不大，但是如果我们加上一个新的组件ClassAdapter那就会变得很有趣。ClassAdapter也是实现了ClassVisitor接口，它相当于一个事件过滤器，通过自定义visitxx方法，同样再获取ClassReader产生的事件时执行相应的visitxx方法，达到按照开发者意愿修改字节码的目的，最后将事件传给ClassWriter将修改后的字节码落地。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">byte[] b1 = ...</span><br><span class="line">ClassReader cr = new ClassReader(b1);</span><br><span class="line">ClassWriter cw = new ClassWriter(cr, 0);</span><br><span class="line">ChangeVersionAdapter ca = new ChangeVersionAdapter(cw); cr.accept(ca, 0);</span><br><span class="line">byte[] b2 = cw.toByteArray();</span><br></pre></td></tr></table></figure>
+<p>上面代码中ca只在字节码的version段触发了一个修改类版本号的动作，剩余部分都直接转发给ClassWriter。</p>
+<p>ClassAdapter是事件的转发者，转化过程形成一条classReader-classAdapter-classWriter的转换链，但一个转换链条没必要是线性的，更复杂的情况是你可以编写一个 ClassVisitor，然后同时转发所有的方法调用给多个 ClassVisitor。<br><img src="https://clouder123.oss-cn-beijing.aliyuncs.com/asm3.png" alt=""></p>
+<p>这样需要开发者在整体性能和低耦合之间做一个权衡。上面就是asm的主要组件及大致原理，它实际上相当于做了一个字节码层面的aop,基于观察者模式的事件触发，原理很简单，掌握了它的规则，使用起来也并不难。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/java/" rel="tag"># java</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/08/27/mybatis缓存体系/" rel="next" title="mybatis缓存体系">
+                <i class="fa fa-chevron-left"></i> mybatis缓存体系
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/10/26/hystrix简介/" rel="prev" title="hystrix简介">
+                hystrix简介 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">Zhu Sheng</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">26</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#简介"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ASM"><span class="nav-number">2.</span> <span class="nav-text">ASM</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Zhu Sheng</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="java,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="BIO与NI0BIO是Java IO最开始提供的一种IO模型，在传统BIO中，ServerSocket 负责绑定IP地址，启动监听端口；Socket负责发起连接操作，连接成功后，双方通过输入和输出流进行同步阻塞通信。采用BIO通信模型的Server，通常由一个独立的Acceptor线程负责监听Client端的连接，它接受到Client端连接请求后为每个Client创建一个新的线程进行处理，处理完之">
+<meta name="keywords" content="java">
+<meta property="og:type" content="article">
+<meta property="og:title" content="理解Reactor与Proactor">
+<meta property="og:url" content="http://yoursite.com/2019/03/06/理解Reactor与Proactor/index.html">
+<meta property="og:site_name" content="宁静致远">
+<meta property="og:description" content="BIO与NI0BIO是Java IO最开始提供的一种IO模型，在传统BIO中，ServerSocket 负责绑定IP地址，启动监听端口；Socket负责发起连接操作，连接成功后，双方通过输入和输出流进行同步阻塞通信。采用BIO通信模型的Server，通常由一个独立的Acceptor线程负责监听Client端的连接，它接受到Client端连接请求后为每个Client创建一个新的线程进行处理，处理完之">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/reactor01.png">
+<meta property="og:updated_time" content="2019-03-06T12:59:59.330Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="理解Reactor与Proactor">
+<meta name="twitter:description" content="BIO与NI0BIO是Java IO最开始提供的一种IO模型，在传统BIO中，ServerSocket 负责绑定IP地址，启动监听端口；Socket负责发起连接操作，连接成功后，双方通过输入和输出流进行同步阻塞通信。采用BIO通信模型的Server，通常由一个独立的Acceptor线程负责监听Client端的连接，它接受到Client端连接请求后为每个Client创建一个新的线程进行处理，处理完之">
+<meta name="twitter:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/reactor01.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2019/03/06/理解Reactor与Proactor/">
+
+
+
+
+
+  <title>理解Reactor与Proactor | 宁静致远</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">宁静致远</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">波起潮落守浮沉</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/03/06/理解Reactor与Proactor/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Zhu Sheng">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="宁静致远">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">理解Reactor与Proactor</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-03-06T20:49:42+08:00">
+                2019-03-06
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/java/" itemprop="url" rel="index">
+                    <span itemprop="name">java</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="BIO与NI0"><a href="#BIO与NI0" class="headerlink" title="BIO与NI0"></a>BIO与NI0</h2><p>BIO是Java IO最开始提供的一种IO模型，在传统BIO中，ServerSocket 负责绑定IP地址，启动监听端口；Socket负责发起连接操作，连接成功后，双方通过输入和输出流进行同步阻塞通信。采用BIO通信模型的Server，通常由一个独立的Acceptor线程负责监听Client端的连接，它接受到Client端连接请求后为每个Client创建一个新的线程进行处理，处理完之后，通过输出流返回给Client端，线程销毁。</p>
+<p>在高并发场景下，BIO模型的弊端就显露无疑，流量增大会导致线程数膨胀最终导致服务崩溃。其实BIO对此有所改进，抛弃线程一对一处理请求，使用线程池处理所有客户端请求，另外使用消息队列接受客户端请求。但由于它仍然是面向数据流的，底层仍然是同步阻塞模型，阻塞时间取决于线程处理时间和IO传输时间。</p>
+<p>NIO相对BIO来说是一种新的IO模型，与Socket类和ServerSocket类相对应，NIO也提供了SocketChannel和 ServerSocketChannel两种不同套接字通道的实现，它们都支持阻塞和非阻塞两种模式。一般来说，低负载、低并发的应用程序可以选择同步阻塞IO以降低复杂度，但是高负载、高并发的网络应用，需要使用NIO的非阻塞模式进行开发。NIO这里不做详细介绍。</p>
+<h2 id="Reactor与Proactor"><a href="#Reactor与Proactor" class="headerlink" title="Reactor与Proactor"></a>Reactor与Proactor</h2><p>reactor和proactor是两种常用的事件分发IO多路复用方案。通常来讲 reactor是基于同步IO，而proactor是基于异步IO（不是绝对的），两者都是有一个event demultiplexer（事件多路分解器）来检测IO状态，不同的handler来注册对某个IO的监听，当IO可以使用的时候，event demultiplexer来通知相应的handler。</p>
+<h3 id="reactor"><a href="#reactor" class="headerlink" title="reactor"></a>reactor</h3><p>Reactor 的中心思想是众所周知的 I/O 多路复用:select,poll,epoll等。Reactor的一般工作过程是首先在Reactor中注册感兴趣事件，并在注册时候指定某个已定义的回调函数。当客户端发送请求时，在 Reactor中会触发刚才注册的事件，并调用对应的处理函数。在这一个处理回调函数中，一般会有数据接收、处理、回复请求等操作。</p>
+<p><img src="https://clouder123.oss-cn-beijing.aliyuncs.com/reactor01.png" alt=""><br>Reactor包含如下角色：</p>
+<ul>
+<li>Handle 句柄；用来标识socket连接或是打开文件；</li>
+<li>Synchronous Event Demultiplexer：同步事件多路分解器：由操作系统内核实现的一个函数；用于阻塞等待发生在句柄集合上的一个或多个事件；（如select/epoll；）</li>
+<li>Event Handler：事件处理接口</li>
+<li>Concrete Event Handler：实现应用程序所提供的特定事件处理逻辑；</li>
+<li>Reactor：反应器，定义一个接口，实现以下功能：<ol>
+<li>供应用程序注册和删除关注的事件句柄；</li>
+<li>运行事件循环；</li>
+<li>有就绪事件到来时，分发事件到之前注册的回调函数上处理；</li>
+</ol>
+</li>
+</ul>
+<p>以read为例，reactor做法是：</p>
+<ul>
+<li>某个事件处理者宣称它对某个socket上的读事件很感兴趣;</li>
+<li>事件分离者等着这个事件的发生;</li>
+<li>当事件发生了，事件分离器被唤醒，这负责通知先前那个事件处理者;</li>
+<li>事件处理者收到消息，于是去那个socket上读数据了. 如果需要，它再次宣称对这个socket上的读事件感兴趣，一直重复上面的步骤;</li>
+</ul>
+<h3 id="proactor"><a href="#proactor" class="headerlink" title="proactor"></a>proactor</h3><p>从上面 Reactor 模式中，发现服务端数据的接收和发送都占用了用户状态（还有一种内核态），这样服务器的处理操作就在数据的读写上阻塞花费了时间，节省这些时间的办法是借助操作系统的异步读写；异步读写在调用的时候可以传递回调函数或者回送信号，当异步操作完毕，内核会自动调用回调函数或者发送信号。Proactor 就是这么做的，所以很依赖操作系统。</p>
+<p>继续以读为例，proactor做法是：</p>
+<ul>
+<li>处理器发起异步读操作，这就要求操作系统必须支持异步IO。这种情况下，处理无视IO就绪事件，它关注的是完成事件。</li>
+<li>事件分离器等待完成事件</li>
+<li>在分离等待过程中，操作系统充分利用并行的内核线程进行实际的读操作，并将结果放入用户自定义缓冲区，最后通知事件分离器操作完成。</li>
+<li>事件分离器通知事件处理器。</li>
+<li>事件处理器处理用户自定义缓冲区的数据，然后启动一个新的异步操作，并将控制权返还给事件分离器。</li>
+</ul>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>可以看出，两个模式的相同点，都是对某个IO事件的事件通知(即告诉某个模块，这个IO操作可以进行或已经完成)。在结构上，两者也有相同点：demultiplexor负责提交IO操作(异步)、查询设备是否可操作(同步)，然后当条件满足时，就回调handler；不同点在于，异步情况下(Proactor)，当回调handler时，表示IO操作已经完成；同步情况下(Reactor)，回调handler时，表示IO设备可以进行某个操作(can read or can write)。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/java/" rel="tag"># java</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/07/14/接口限流之RateLimiter/" rel="next" title="接口限流之RateLimiter">
+                <i class="fa fa-chevron-left"></i> 接口限流之RateLimiter
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2019/03/28/JDK动态代理/" rel="prev" title="JDK动态代理">
+                JDK动态代理 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">Zhu Sheng</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">7</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">2</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">2</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#BIO与NI0"><span class="nav-number">1.</span> <span class="nav-text">BIO与NI0</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Reactor与Proactor"><span class="nav-number">2.</span> <span class="nav-text">Reactor与Proactor</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#reactor"><span class="nav-number">2.1.</span> <span class="nav-text">reactor</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#proactor"><span class="nav-number">2.2.</span> <span class="nav-text">proactor</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#总结"><span class="nav-number">3.</span> <span class="nav-text">总结</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Zhu Sheng</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

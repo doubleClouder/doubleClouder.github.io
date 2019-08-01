@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="kafka,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言kafka作为分布式的MQ系统时一个最重要的特性就是高吞吐量、低延迟。kafka每秒可以处理几十万条消息，它的延迟最低只有几毫秒。每个topic可以分多个partition,kafka使用replication机制备份partition数据。Follower partition可以批量的从Leader partition复制数据，而且Leader充分利用磁盘顺序读以及zero copy机制，这">
+<meta name="keywords" content="kafka">
+<meta property="og:type" content="article">
+<meta property="og:title" content="kafka学习笔记（四）zero-copy使用分析">
+<meta property="og:url" content="http://yoursite.com/2017/12/03/kafka学习笔记（四）zero-copy使用分析/index.html">
+<meta property="og:site_name" content="宁静致远">
+<meta property="og:description" content="前言kafka作为分布式的MQ系统时一个最重要的特性就是高吞吐量、低延迟。kafka每秒可以处理几十万条消息，它的延迟最低只有几毫秒。每个topic可以分多个partition,kafka使用replication机制备份partition数据。Follower partition可以批量的从Leader partition复制数据，而且Leader充分利用磁盘顺序读以及zero copy机制，这">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-07-30T09:55:55.794Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="kafka学习笔记（四）zero-copy使用分析">
+<meta name="twitter:description" content="前言kafka作为分布式的MQ系统时一个最重要的特性就是高吞吐量、低延迟。kafka每秒可以处理几十万条消息，它的延迟最低只有几毫秒。每个topic可以分多个partition,kafka使用replication机制备份partition数据。Follower partition可以批量的从Leader partition复制数据，而且Leader充分利用磁盘顺序读以及zero copy机制，这">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2017/12/03/kafka学习笔记（四）zero-copy使用分析/">
+
+
+
+
+
+  <title>kafka学习笔记（四）zero-copy使用分析 | 宁静致远</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">宁静致远</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">波起潮落守浮沉</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/12/03/kafka学习笔记（四）zero-copy使用分析/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Zhu Sheng">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="宁静致远">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">kafka学习笔记（四）zero-copy使用分析</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-12-03T16:53:13+08:00">
+                2017-12-03
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/kafka/" itemprop="url" rel="index">
+                    <span itemprop="name">kafka</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>kafka作为分布式的MQ系统时一个最重要的特性就是高吞吐量、低延迟。kafka每秒可以处理几十万条消息，它的延迟最低只有几毫秒。每个topic可以分多个partition,kafka使用replication机制备份partition数据。Follower partition可以批量的从Leader partition复制数据，而且Leader充分利用磁盘顺序读以及zero copy机制，这样极大的提高复制性能，内部批量写磁盘，大幅减少了Follower与Leader的消息量差。zero copy是nio重要特性之一，它极大提高数据传输效率，本文我们就来分析一下kafka中如果使用这一特性。</p>
+<h2 id="zero-copy机制"><a href="#zero-copy机制" class="headerlink" title="zero copy机制"></a>zero copy机制</h2><p>说到zero copy，我们先来看下传统io服务端对客户端的传输。对于读操作：jvm虚拟机一定会发送一个read（）操作系统级别的方法，由此会产生一个上下文的切换，从程序所在的用户空间切换至系统的内核空间，内核空间向磁盘空间请求数据，通过DMA直接内存访问的方式将数据读取到内核空间缓冲区，此时用户空间是无法直接使用的，所以下面会将这份缓冲数据原封不动的拷贝到用户空间，至此read操作就结束。期间有两次上下文的切换，和两次数据的拷贝。对于写操作：将文件读取之后需要发送给远端socket客户端。同样调用系统级别的write方法，需要将上述读到的用户空间的数据原封不动的拷贝到内核上的socket缓冲区，然后DMA 引擎将数据从该缓冲区传到协议引擎，这一次拷贝独立地、异步地发生 。我们可以发现在一次网络IO过程有着不必要的上下文切换和数据拷贝。</p>
+<p>因此操作系统对于IO的一种优化方式是对于读写操作：用户空间向操作系统发送sendfile()方法，后续的操作只会在内核空间完成。对于所有的读写操作将只会有两次的用户空间和内核空间切换，这种操作称为操作系统意义上的零拷贝。而最佳的实现方式是通过DMA的方式拷贝数据到内核缓冲区，将对应的文件描述符写到socket buffer中，包含了内核的缓冲区的地址和数据长度，并不需要将数据拷贝到socket buffer中，只用存文件描述符。最后协议引擎发送数据的时候，从kernel buffer和socket buffer里面读取数据，对于kernel buffer是真实数据的读取，而对于socket buffer是文件描述符的读取，通过gather操作最终一起发送给客户端。</p>
+<p>在nio中通过java.nio.channels.FileChannel. transferTo()方法支持zerocopy技术。</p>
+<h2 id="kafa中如何应用"><a href="#kafa中如何应用" class="headerlink" title="kafa中如何应用"></a>kafa中如何应用</h2><p>kafka中partition leader到follower的消息同步和consumer拉取partition中的消息都使用到zero cory。Cousumer从broker获取数据时直接使用了FileChannel.transferTo()，直接在内核态进行的channel到channel的数据传输。</p>
+<p>下面通过代码分析一下kafka使用zero cory的流程。首先看下kafka.server.KafkaApis.handle方法，它是kafka业务逻辑处理的入口。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">def handle(request: RequestChannel.Request) &#123;</span><br><span class="line">       ApiKeys.forId(request.requestId) match &#123;</span><br><span class="line">        case ApiKeys.PRODUCE =&gt; handleProducerRequest(request)</span><br><span class="line">        case ApiKeys.FETCH =&gt; handleFetchRequest(request)</span><br></pre></td></tr></table></figure>
+<p>进入handleFetchRequest方法，也即消费者获取消息的逻辑。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">replicaManager.fetchMessages(  </span><br><span class="line">       fetchRequest.maxWait.toLong, </span><br><span class="line">      fetchRequest.replicaId, </span><br><span class="line">      fetchRequest.minBytes,  </span><br><span class="line">      authorizedRequestInfo,  </span><br><span class="line">      sendResponseCallback)</span><br></pre></td></tr></table></figure>
+<p>ReplicaManager 包含所有主题的所有partition消息。大部分针对Partition的操作都是通过该类来完成的。进入fetchMessages中我们会发现</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">val logReadResults = readFromLocalLog(fetchOnlyFromLeader, fetchOnlyCommitted, fetchInfo)</span><br></pre></td></tr></table></figure>
+<p>这是真正获取broker数据的地方，内部通过Log对象调用log.read(offset, fetchSize, maxOffsetOpt)，这里的log就是segment log的抽象。进入read发现数据是从这里读到的。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">val fetchInfo = entry.getValue.read(startOffset, maxOffset, maxLength, maxPosition)</span><br></pre></td></tr></table></figure>
+<p>fetchInfo对象有一个成员是FileMessageSet，它表示用户在这个Partition这一次消费能够拿到的数据集合。FileMessageSet里面有一个很重要的方法。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">def writeTo(destChannel: GatheringByteChannel, writePosition: Long, size: Int): Int = &#123;</span><br><span class="line">    ......</span><br><span class="line">    </span><br><span class="line">    val bytesTransferred = (destChannel match &#123;</span><br><span class="line">      case tl: TransportLayer =&gt; tl.transferFrom(channel, position, count)</span><br><span class="line">      case dc =&gt; channel.transferTo(position, count, dc)</span><br><span class="line">    &#125;).toInt</span><br><span class="line">   </span><br><span class="line">    bytesTransferred</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>回到上面readFromLocalLog，获取到数据后会被包装成</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">val fetchPartitionData = logReadResults.mapValues(result =&gt;  FetchResponsePartitionData(result.errorCode, result.hw, result.info.messageSet))</span><br><span class="line">responseCallback(fetchPartitionData)</span><br></pre></td></tr></table></figure>
+<p>fetchPartitionData包含了上面提到的FileMessageSet，里面有真正进行zero copy的tranferTo()方法。上面代码可以发现回调函数responseCallback的参数是fetchPartitionData。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">def sendResponseCallback(responsePartitionData: Map[TopicAndPartition, FetchResponsePartitionData]) &#123;</span><br><span class="line">      val mergedResponseStatus = responsePartitionData ++ unauthorizedResponseStatus</span><br><span class="line">...</span><br><span class="line">      def fetchResponseCallback(delayTimeMs: Int) &#123;</span><br><span class="line">        val response = FetchResponse(fetchRequest.correlationId, mergedResponseStatus, fetchRequest.versionId, delayTimeMs)</span><br><span class="line">        requestChannel.sendResponse(new RequestChannel.Response(request, new FetchResponseSend(request.connectionId, response)))</span><br><span class="line">      &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里可以发现FetchResponsePartitionData 会被封装成一个FetchResponseSend ,然后由requestChannel发送出去。因为Kafka完全应用是NIO的异步机制，我们继续看下数据如何发送到consumer端。</p>
+<p>在SocketServer，也就是负责和所有的消费者打交道，建立连接的中枢里，会不断的进行poll操作。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">override def run() &#123;</span><br><span class="line">    startupComplete()</span><br><span class="line">    while(isRunning) &#123;</span><br><span class="line">      try &#123;</span><br><span class="line">        // setup any new connections that have been queued up</span><br><span class="line">        configureNewConnections()</span><br><span class="line">        // register any new responses for writing</span><br><span class="line">        processNewResponses()</span><br><span class="line">        try &#123;</span><br><span class="line">          selector.poll(300)</span><br><span class="line">        &#125; catch &#123;</span><br><span class="line">          case...</span><br><span class="line">        &#125;</span><br></pre></td></tr></table></figure>
+<p>首先会注册新的连接，如果有的话。接着就是处理新的响应了。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">private def processNewResponses() &#123;</span><br><span class="line">    var curr = requestChannel.receiveResponse(id)</span><br><span class="line">    while(curr != null) &#123;</span><br><span class="line">      try &#123;</span><br><span class="line">        curr.responseAction match &#123;         </span><br><span class="line">          case RequestChannel.SendAction =&gt;</span><br><span class="line">            selector.send(curr.responseSend)</span><br><span class="line">            inflightResponses += (curr.request.connectionId -&gt; curr)</span><br><span class="line">          </span><br><span class="line">        &#125;</span><br><span class="line">      &#125; finally &#123;</span><br><span class="line">        curr = requestChannel.receiveResponse(id)</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>requestChannel.receiveResponse 对应上面FetchResponseSend的requestChannel.sendResponse。这里selector.send会将FetchResponseSend注册一个WRITE事件到selector上。SocketServer 会poll队列，一旦对应的KafkaChannel 写操作ready了，就会调用KafkaChannel的write方法：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">public Send write() throws IOException &#123;</span><br><span class="line">        if (send != null &amp;&amp; send(send)) </span><br><span class="line">     </span><br><span class="line">    ....</span><br><span class="line"> private boolean send(Send send) throws IOException &#123;</span><br><span class="line">        send.writeTo(transportLayer);</span><br><span class="line">        if (send.completed())</span><br><span class="line">            transportLayer.removeInterestOps(SelectionKey.OP_WRITE);</span><br><span class="line">        return send.completed();</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>send方法的入参send对象就是上面我们注册的FetchResponseSend 对象。接着看下send.writeTo()方法。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">private val sends = new MultiSend(dest, JavaConversions.seqAsJavaList(fetchResponse.dataGroupedByTopic.toList.map &#123;</span><br><span class="line">    case(topic, data) =&gt; new TopicDataSend(dest, TopicData(topic,</span><br><span class="line">                                                     data.map&#123;case(topicAndPartition, message) =&gt; (topicAndPartition.partition, message)&#125;))</span><br><span class="line">    &#125;))</span><br><span class="line">override def writeTo(channel: GatheringByteChannel): Long = &#123;</span><br><span class="line">    .....    </span><br><span class="line">     written += sends.writeTo(channel)</span><br><span class="line">    ....</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>可以发现send是一个MultiSend对象，里面包含两个重要成员topicAndPartition.partition: 分区<br>message:FetchResponsePartitionData。</p>
+<p>最后进行writeTo的时候是通过上面提到的FileMessageSet的writeTo，其实最后是通过tl.transferFrom(channel, position, count) 来完成最后的数据发送的。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">@Override</span><br><span class="line">    public long transferFrom(FileChannel fileChannel, long position, long count) throws IOException &#123;</span><br><span class="line">        return fileChannel.transferTo(position, count, socketChannel);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>上述就是zero copy的介绍以及kafka中是如何对这一机制的合理应用和异步NIO来极大提高消息消费效率的过程。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/kafka/" rel="tag"># kafka</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/11/30/kafka学习笔记（三）-kafkaProducer-NIO模型/" rel="next" title="kafka学习笔记（三）-kafkaProducer NIO模型">
+                <i class="fa fa-chevron-left"></i> kafka学习笔记（三）-kafkaProducer NIO模型
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/12/29/kafka学习笔记（五）-Coordinator/" rel="prev" title="kafka学习笔记（五）-Coordinator">
+                kafka学习笔记（五）-Coordinator <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">Zhu Sheng</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">26</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#zero-copy机制"><span class="nav-number">2.</span> <span class="nav-text">zero copy机制</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#kafa中如何应用"><span class="nav-number">3.</span> <span class="nav-text">kafa中如何应用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#总结"><span class="nav-number">4.</span> <span class="nav-text">总结</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Zhu Sheng</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

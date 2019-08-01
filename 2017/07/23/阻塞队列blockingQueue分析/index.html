@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="java,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="简介在多线程编程中，生产者消费者是经典的线程间数据共享问题。在多个生产者和消费者的情况，使用队列进行生产和消费的解耦，能有效解决线程间数据共享问题。但是考虑到生产消费速率不均衡的问题，我们必须能够让在队列为空时暂停消费，在队列满时暂停生产；基于这点考虑，我们需要需要在临界值对线程进行阻塞或者唤醒操作，这不仅增加了编程难度，还可能带来带来潜在的线程安全问题。幸好concurrent包为我们提供了强大">
+<meta name="keywords" content="java">
+<meta property="og:type" content="article">
+<meta property="og:title" content="阻塞队列blockingQueue分析">
+<meta property="og:url" content="http://yoursite.com/2017/07/23/阻塞队列blockingQueue分析/index.html">
+<meta property="og:site_name" content="宁静致远">
+<meta property="og:description" content="简介在多线程编程中，生产者消费者是经典的线程间数据共享问题。在多个生产者和消费者的情况，使用队列进行生产和消费的解耦，能有效解决线程间数据共享问题。但是考虑到生产消费速率不均衡的问题，我们必须能够让在队列为空时暂停消费，在队列满时暂停生产；基于这点考虑，我们需要需要在临界值对线程进行阻塞或者唤醒操作，这不仅增加了编程难度，还可能带来带来潜在的线程安全问题。幸好concurrent包为我们提供了强大">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-07-23T12:33:00.824Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="阻塞队列blockingQueue分析">
+<meta name="twitter:description" content="简介在多线程编程中，生产者消费者是经典的线程间数据共享问题。在多个生产者和消费者的情况，使用队列进行生产和消费的解耦，能有效解决线程间数据共享问题。但是考虑到生产消费速率不均衡的问题，我们必须能够让在队列为空时暂停消费，在队列满时暂停生产；基于这点考虑，我们需要需要在临界值对线程进行阻塞或者唤醒操作，这不仅增加了编程难度，还可能带来带来潜在的线程安全问题。幸好concurrent包为我们提供了强大">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2017/07/23/阻塞队列blockingQueue分析/">
+
+
+
+
+
+  <title>阻塞队列blockingQueue分析 | 宁静致远</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">宁静致远</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">波起潮落守浮沉</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/07/23/阻塞队列blockingQueue分析/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Zhu Sheng">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="宁静致远">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">阻塞队列blockingQueue分析</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-07-23T20:22:34+08:00">
+                2017-07-23
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/java/" itemprop="url" rel="index">
+                    <span itemprop="name">java</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>在多线程编程中，生产者消费者是经典的线程间数据共享问题。在多个生产者和消费者的情况，使用队列进行生产和消费的解耦，能有效解决线程间数据共享问题。但是考虑到生产消费速率不均衡的问题，我们必须能够让在队列为空时暂停消费，在队列满时暂停生产；基于这点考虑，我们需要需要在临界值对线程进行阻塞或者唤醒操作，这不仅增加了编程难度，还可能带来带来潜在的线程安全问题。幸好concurrent包为我们提供了强大的BlockingQueue。我们就来看看BlockingQueue如何进行生产消费的。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br></pre></td><td class="code"><pre><span class="line">public class BlockingQueueTest &#123;</span><br><span class="line">    public static final BlockingQueue&lt;String&gt; bq = new ArrayBlockingQueue&lt;String&gt;(20);</span><br><span class="line">    public static void main(String[] args)</span><br><span class="line">    &#123;</span><br><span class="line">        for(int i=0; i&lt;10; i++)&#123;</span><br><span class="line">            Thread producerThread = new Thread(new Producer());</span><br><span class="line">            producerThread.start();</span><br><span class="line">            Thread consumerThread = new Thread(new Consumer());</span><br><span class="line">            consumerThread.start();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    static class Consumer implements Runnable&#123;</span><br><span class="line">        @Override</span><br><span class="line">        public void run() &#123;</span><br><span class="line">            while (true)</span><br><span class="line">            &#123;</span><br><span class="line">                try</span><br><span class="line">                &#123;</span><br><span class="line">                    System.out.println(&quot;线程：&quot;+ Thread.currentThread().getName()+&quot;消费数据：&quot;+ bq.take());</span><br><span class="line">                    Thread.sleep(1000);</span><br><span class="line">                &#125;</span><br><span class="line">                catch (InterruptedException e)</span><br><span class="line">                &#123;</span><br><span class="line">                    e.printStackTrace();</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    static class Producer implements Runnable&#123;</span><br><span class="line">        @Override</span><br><span class="line">        public void run() &#123;</span><br><span class="line">            while (true)</span><br><span class="line">            &#123;</span><br><span class="line">                try</span><br><span class="line">                &#123;</span><br><span class="line">                    System.out.println(&quot;线程：&quot;+ Thread.currentThread().getName()+&quot;生产数据&quot;);</span><br><span class="line">                    bq.put(&quot;data&quot;);</span><br><span class="line">                    Thread.sleep(1000);</span><br><span class="line">                &#125;</span><br><span class="line">                catch (InterruptedException e)</span><br><span class="line">                &#123;</span><br><span class="line">                    e.printStackTrace();</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>我们创建一个容量为10的BlockingQueue，并创建10个生产者和消费者。生产者消费者之间的协调会按照前面所预期的进行。</p>
+<h2 id="BlockingQueue"><a href="#BlockingQueue" class="headerlink" title="BlockingQueue"></a>BlockingQueue</h2><p>下面我们就来扒一扒blockingQueue是如何解决我们的难题的。</p>
+<p>上面就是BlockingQueue家族的主要成员。blockingQueue作为上层接口，定义了一些核心方法，各成员遵守这些方法的约定进行实现。</p>
+<ul>
+<li>offer(E e) 将对象加入队列中，非阻塞方式。</li>
+<li>offer(E e, long timeout, TimeUnit unit) 设置超时时间，在预期时间内未能放入队列则返回失败。</li>
+<li>put(E e) 阻塞方式入队列，若未能放入则当前线程挂起，直到能够放入线程唤醒。</li>
+<li>add(E e) 如不能放入对象，则抛异常。</li>
+<li>poll() 从队首取出对象，非阻塞方式。</li>
+<li>poll(long timeout, TimeUnit unit)设置取队列元素的等待时间。</li>
+<li>take()阻塞方式取对象。</li>
+<li>remove() 不能取出则抛异常。</li>
+<li>drainTo(Collection&lt;? super E&gt; c) 取出所用可用队列元素。</li>
+</ul>
+<p>我们可以发现这里操作是成对的 add(),remove()和offer,poll是对非阻塞队列的操作 而put,take是对阻塞队列的操作。</p>
+<p>对blockingQueue中的核心操作有了个概念之后我们以BlockingQueue成员之一ArrayBlockingQueue来看下阻塞队列的实现原理。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">public class ArrayBlockingQueue&lt;E&gt; extends AbstractQueue&lt;E&gt;</span><br><span class="line">        implements BlockingQueue&lt;E&gt;, java.io.Serializable &#123;</span><br><span class="line">    /**</span><br><span class="line">     * Serialization ID. This class relies on default serialization</span><br><span class="line">     * even for the items array, which is default-serialized, even if</span><br><span class="line">     * it is empty. Otherwise it could not be declared final, which is</span><br><span class="line">     * necessary here.</span><br><span class="line">     */</span><br><span class="line">    private static final long serialVersionUID = -817911632652898426L;</span><br><span class="line">    /** The queued items */</span><br><span class="line">    final Object[] items;</span><br><span class="line">    /** items index for next take, poll, peek or remove */</span><br><span class="line">    int takeIndex;</span><br><span class="line">    /** items index for next put, offer, or add */</span><br><span class="line">    int putIndex;</span><br><span class="line">    /** Number of elements in the queue */</span><br><span class="line">    int count;</span><br><span class="line">    /*</span><br><span class="line">     * Concurrency control uses the classic two-condition algorithm</span><br><span class="line">     * found in any textbook.</span><br><span class="line">     */</span><br><span class="line">    /** Main lock guarding all access */</span><br><span class="line">    final ReentrantLock lock;</span><br><span class="line">    /** Condition for waiting takes */</span><br><span class="line">    private final Condition notEmpty;</span><br><span class="line">    /** Condition for waiting puts */</span><br><span class="line">    private final Condition notFull;</span><br></pre></td></tr></table></figure>
+<p>ArrayBlockingQueue的队列就是一个数组items。takeIndex和putIndex分别表示当前队首和队尾的下标，count表示队列元素的个数。lock是一个可重入锁，notEmpty和notFull是等待条件。</p>
+<p>下面我们直接看下核心操作put()和take()的实现：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">public void put(E e) throws InterruptedException &#123;</span><br><span class="line">        checkNotNull(e);</span><br><span class="line">        final ReentrantLock lock = this.lock;</span><br><span class="line">        lock.lockInterruptibly();</span><br><span class="line">        try &#123;</span><br><span class="line">            while (count == items.length)</span><br><span class="line">                notFull.await();</span><br><span class="line">            enqueue(e);</span><br><span class="line">        &#125; finally &#123;</span><br><span class="line">            lock.unlock();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    private void enqueue(E x) &#123;</span><br><span class="line">        // assert lock.getHoldCount() == 1;</span><br><span class="line">        // assert items[putIndex] == null;</span><br><span class="line">        final Object[] items = this.items;</span><br><span class="line">        items[putIndex] = x;</span><br><span class="line">        if (++putIndex == items.length)</span><br><span class="line">            putIndex = 0;</span><br><span class="line">        count++;</span><br><span class="line">        notEmpty.signal();</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>首先尝试获取锁，然后判断队列元素个数是否达到容量，没有的话就入队列，否则在条件notFull上等待。入队列enqueue方法中会唤醒在条件notEmpty上等待的线程。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">public E take() throws InterruptedException &#123;</span><br><span class="line">        final ReentrantLock lock = this.lock;</span><br><span class="line">        lock.lockInterruptibly();</span><br><span class="line">        try &#123;</span><br><span class="line">            while (count == 0)</span><br><span class="line">                notEmpty.await();</span><br><span class="line">            return dequeue();</span><br><span class="line">        &#125; finally &#123;</span><br><span class="line">            lock.unlock();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">   private E dequeue() &#123;</span><br><span class="line">        // assert lock.getHoldCount() == 1;</span><br><span class="line">        // assert items[takeIndex] != null;</span><br><span class="line">        final Object[] items = this.items;</span><br><span class="line">        @SuppressWarnings(&quot;unchecked&quot;)</span><br><span class="line">        E x = (E) items[takeIndex];</span><br><span class="line">        items[takeIndex] = null;</span><br><span class="line">        if (++takeIndex == items.length)</span><br><span class="line">            takeIndex = 0;</span><br><span class="line">        count--;</span><br><span class="line">        if (itrs != null)</span><br><span class="line">            itrs.elementDequeued();</span><br><span class="line">        notFull.signal();</span><br><span class="line">        return x;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>take（）操作则刚好相反，put方法等待的是notFull条件，而take方法等待的是notEmpty条件。条件满足时dequeue，从对首取出元素，唤醒在条件notFull()上等待的线程。</p>
+<p>实际上阻塞对列就是用锁代替了我们使用Object.wait()/Object.notify()基于非阻塞队列实现生产消费模型，其他不同类型的BlockingQueue实现原理类似。阻塞队列帮助我们解决了线程同步的难题，避免出错了可能。在认识阻塞队列的作用之后，下一篇我们继续探讨下BlockingQueue家族中另外一位能力出众的成员DelayQueue。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/java/" rel="tag"># java</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/07/14/接口限流之RateLimiter/" rel="next" title="接口限流之RateLimiter">
+                <i class="fa fa-chevron-left"></i> 接口限流之RateLimiter
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/08/27/mybatis缓存体系/" rel="prev" title="mybatis缓存体系">
+                mybatis缓存体系 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">Zhu Sheng</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">26</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#简介"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#BlockingQueue"><span class="nav-number">2.</span> <span class="nav-text">BlockingQueue</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Zhu Sheng</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

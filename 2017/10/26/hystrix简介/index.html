@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="hystrix,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="简介Hystrix是Netflix开源的延迟容错工具包，用于隔离分布式系统之间的依赖访问，防止级联故障，使得复杂的分布式系统在错误不可避免的条件下仍具有弹性，具有一定程度的自我保护能力。 应用在微服务大行其道的互联网应用中，稍微复杂点的分布式系统都会有很多外部依赖，每个依赖在某些时候或者某些恶劣条件下都不可避免的会产生故障，如果主应用没有隔离这些故障，就会面临被拖垮的风险。 Hystrix官网给出">
+<meta name="keywords" content="hystrix">
+<meta property="og:type" content="article">
+<meta property="og:title" content="hystrix简介">
+<meta property="og:url" content="http://yoursite.com/2017/10/26/hystrix简介/index.html">
+<meta property="og:site_name" content="宁静致远">
+<meta property="og:description" content="简介Hystrix是Netflix开源的延迟容错工具包，用于隔离分布式系统之间的依赖访问，防止级联故障，使得复杂的分布式系统在错误不可避免的条件下仍具有弹性，具有一定程度的自我保护能力。 应用在微服务大行其道的互联网应用中，稍微复杂点的分布式系统都会有很多外部依赖，每个依赖在某些时候或者某些恶劣条件下都不可避免的会产生故障，如果主应用没有隔离这些故障，就会面临被拖垮的风险。 Hystrix官网给出">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/hestrix1.png">
+<meta property="og:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/hestrix2.png">
+<meta property="og:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/hestrix3.png">
+<meta property="og:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/hystix4.png">
+<meta property="og:updated_time" content="2019-07-25T03:01:12.259Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="hystrix简介">
+<meta name="twitter:description" content="简介Hystrix是Netflix开源的延迟容错工具包，用于隔离分布式系统之间的依赖访问，防止级联故障，使得复杂的分布式系统在错误不可避免的条件下仍具有弹性，具有一定程度的自我保护能力。 应用在微服务大行其道的互联网应用中，稍微复杂点的分布式系统都会有很多外部依赖，每个依赖在某些时候或者某些恶劣条件下都不可避免的会产生故障，如果主应用没有隔离这些故障，就会面临被拖垮的风险。 Hystrix官网给出">
+<meta name="twitter:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/hestrix1.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2017/10/26/hystrix简介/">
+
+
+
+
+
+  <title>hystrix简介 | 宁静致远</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">宁静致远</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">波起潮落守浮沉</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/10/26/hystrix简介/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Zhu Sheng">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="宁静致远">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">hystrix简介</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-10-26T10:35:58+08:00">
+                2017-10-26
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/hystrix/" itemprop="url" rel="index">
+                    <span itemprop="name">hystrix</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>Hystrix是Netflix开源的延迟容错工具包，用于隔离分布式系统之间的依赖访问，防止级联故障，使得复杂的分布式系统在错误不可避免的条件下仍具有弹性，具有一定程度的自我保护能力。</p>
+<h2 id="应用"><a href="#应用" class="headerlink" title="应用"></a>应用</h2><p>在微服务大行其道的互联网应用中，稍微复杂点的分布式系统都会有很多外部依赖，每个依赖在某些时候或者某些恶劣条件下都不可避免的会产生故障，如果主应用没有隔离这些故障，就会面临被拖垮的风险。</p>
+<p>Hystrix官网给出了这样一个栗子：</p>
+<p><img src="https://clouder123.oss-cn-beijing.aliyuncs.com/hestrix1.png" alt=""><br>一个应用依赖30个外部服务，每个服务的可用性为4个9（99.99%），那么主应用的可用性即为99.99% ^ 30 = 99.7%,0.3%的故障率意味着每个月有2个多小时的服务不可用，这对于流量很高的互联网应用来说通常是不能容忍的。而且当依赖的外部服务越多，可用性越差。服务正常运行时，如上图所示。当有一个系统延迟很高时，会阻塞整个用户请求：</p>
+<p><img src="https://clouder123.oss-cn-beijing.aliyuncs.com/hestrix2.png" alt=""><br>在高并发场景下，单个依赖服务接口超时后会所有服务器上的资源都被耗尽，造成更多级联故障。如下图：</p>
+<p><img src="https://clouder123.oss-cn-beijing.aliyuncs.com/hestrix3.png" alt=""><br>因此我们可以得出结论，在有很多外部依赖的服务中，我们有必要将这些依赖隔离管理，从而使延迟和故障被隔离，使得单个接口的故障不会拖垮整个应用。</p>
+<h2 id="设计原则"><a href="#设计原则" class="headerlink" title="设计原则"></a>设计原则</h2><p>通过以上的分析，hystrix的设计原则已经很明了，通过隔离术来提高服务可用性。具体表现在以下几点：</p>
+<ol>
+<li>通过线程隔离来防止单个依赖耗尽所有容器内的所有用户线程。</li>
+<li>在系统无法处理请求时快速失败，而不是入队，以降低系统负载。</li>
+<li>提供失败降级，在必要时让失败对用户透明。</li>
+<li>利用隔离术(舱壁、泳道、熔断器模式)来隔离单个依赖对整个系统的影响。</li>
+<li>针对系统服务运行的度量、监控、报警，提供优化以满足近实时性的需求。</li>
+<li>hystrix大部分属性都支持动态配置并且快速应用，从而辅助我们做实时性的修改。</li>
+<li>可以隔离应用整个执行过程中失败的影响，不仅仅是通信中。</li>
+</ol>
+<h2 id="实现原理"><a href="#实现原理" class="headerlink" title="实现原理"></a>实现原理</h2><p>那么hystrix到底是如何将这些设计实现，让世界更美好的呢，下面大体看下hestrix的实现。</p>
+<p>首先，hestrix可以将所有对外部系统的调用都包装在命令模式的对象HystrixCommand或HystrixObservableCommand中，它通过一个隔离的线程执行远程调用。默认情况下，hestrix支持自动超时机制，也支持手动配置超时时间（通常根据99线）。另外，hestrix会对每个外部依赖都维护一个线程池，如果线程池满了会立即拒绝，而非排队等待。还有就是引入断路器机制以阻断一段时间对特定服务的访问，支持手动开启断路器，或者根据失败率自动开启。在请求失败、超时、拒绝时，可以执行降级逻辑。监控计量数据和配置信息支持动态修改。</p>
+<p><img src="https://clouder123.oss-cn-beijing.aliyuncs.com/hystix4.png" alt=""><br>当使用Hystrix来包装依赖服务时，上面的架构即变成如下图所示。每个依赖都相互隔离，当某个依赖延迟发生时只会耗尽其内部资源而不影响其他资源，同时也实现了降级逻辑用于依赖服务发生错误时向用户返回信息。</p>
+<p>参考：<a href="https://github.com/Netflix/Hystrix/wiki" target="_blank" rel="noopener">Hystix</a></p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/hystrix/" rel="tag"># hystrix</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/09/24/ASM初探/" rel="next" title="ASM初探">
+                <i class="fa fa-chevron-left"></i> ASM初探
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/10/29/hystrix使用（一）/" rel="prev" title="hystrix使用（一）">
+                hystrix使用（一） <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">Zhu Sheng</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">26</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#简介"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#应用"><span class="nav-number">2.</span> <span class="nav-text">应用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#设计原则"><span class="nav-number">3.</span> <span class="nav-text">设计原则</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#实现原理"><span class="nav-number">4.</span> <span class="nav-text">实现原理</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Zhu Sheng</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

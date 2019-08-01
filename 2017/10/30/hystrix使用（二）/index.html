@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="hystrix,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="继上一篇介绍的Hystrix的使用之后，本篇内容进一步探讨一下Hytrix的使用，下面直接进入正题。 隔离策略Hytrix应用舱壁模式（货船为了进行防止漏水和火灾的扩散，将货仓分割成多个，以此减小意外带来的损失）来隔离依赖，限制对依赖的并发访问。Hystrix有两种隔离策略：线程隔离和信号量隔离。 线程隔离每个外部依赖都在隔离的线程中执行，将这些对外部的调用从调用线程中隔离开，从而不会影响调用者的">
+<meta name="keywords" content="hystrix">
+<meta property="og:type" content="article">
+<meta property="og:title" content="hystrix使用（二）">
+<meta property="og:url" content="http://yoursite.com/2017/10/30/hystrix使用（二）/index.html">
+<meta property="og:site_name" content="宁静致远">
+<meta property="og:description" content="继上一篇介绍的Hystrix的使用之后，本篇内容进一步探讨一下Hytrix的使用，下面直接进入正题。 隔离策略Hytrix应用舱壁模式（货船为了进行防止漏水和火灾的扩散，将货仓分割成多个，以此减小意外带来的损失）来隔离依赖，限制对依赖的并发访问。Hystrix有两种隔离策略：线程隔离和信号量隔离。 线程隔离每个外部依赖都在隔离的线程中执行，将这些对外部的调用从调用线程中隔离开，从而不会影响调用者的">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-07-25T07:33:48.296Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="hystrix使用（二）">
+<meta name="twitter:description" content="继上一篇介绍的Hystrix的使用之后，本篇内容进一步探讨一下Hytrix的使用，下面直接进入正题。 隔离策略Hytrix应用舱壁模式（货船为了进行防止漏水和火灾的扩散，将货仓分割成多个，以此减小意外带来的损失）来隔离依赖，限制对依赖的并发访问。Hystrix有两种隔离策略：线程隔离和信号量隔离。 线程隔离每个外部依赖都在隔离的线程中执行，将这些对外部的调用从调用线程中隔离开，从而不会影响调用者的">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2017/10/30/hystrix使用（二）/">
+
+
+
+
+
+  <title>hystrix使用（二） | 宁静致远</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">宁静致远</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">波起潮落守浮沉</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/10/30/hystrix使用（二）/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Zhu Sheng">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="宁静致远">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">hystrix使用（二）</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-10-30T11:42:31+08:00">
+                2017-10-30
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/hystrix/" itemprop="url" rel="index">
+                    <span itemprop="name">hystrix</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>继上一篇介绍的Hystrix的使用之后，本篇内容进一步探讨一下Hytrix的使用，下面直接进入正题。</p>
+<h2 id="隔离策略"><a href="#隔离策略" class="headerlink" title="隔离策略"></a>隔离策略</h2><p>Hytrix应用舱壁模式（货船为了进行防止漏水和火灾的扩散，将货仓分割成多个，以此减小意外带来的损失）来隔离依赖，限制对依赖的并发访问。<br>Hystrix有两种隔离策略：线程隔离和信号量隔离。</p>
+<h4 id="线程隔离"><a href="#线程隔离" class="headerlink" title="线程隔离"></a>线程隔离</h4><p>每个外部依赖都在隔离的线程中执行，将这些对外部的调用从调用线程中隔离开，从而不会影响调用者的整个流程。Hystrix底层通过为每个依赖建一个线程池的方式来达到当次依赖的线程池资源耗尽时不会影响其他依赖。</p>
+<h4 id="信号量隔离"><a href="#信号量隔离" class="headerlink" title="信号量隔离"></a>信号量隔离</h4><p>信号量一般用来控制对给定依赖的并发请求数量。通过使用信号量的方式来控制负载。但是它不允许超时和非阻塞请求。如果足够信任依赖方并且仅仅想限制负载时，可以使用此方法。HytrixCommand和HystrixObservableCommand在两个地方实施信号量隔离：Fallback和Execution。</p>
+<p>配置Command为信号隔离还是线程隔离：以下为线程隔离的方式，同时可以设置线程池的属性。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">public class CommandUsingThreadsolation extends HystrixCommand&lt;String&gt; &#123;</span><br><span class="line">    private final int id;</span><br><span class="line">    public CommandUsingThreadsolation(int id) &#123;</span><br><span class="line">        super(Setter.withGroupKey(HystrixCommandGroupKey.Factory.asKey(&quot;ExampleGroup&quot;))</span><br><span class="line">                .andCommandPropertiesDefaults(HystrixCommandProperties.Setter()</span><br><span class="line">                //THREAD : 线程隔离     SEMAPHORE : 信号量隔离</span><br><span class="line">                        .withExecutionIsolationStrategy(ExecutionIsolationStrategy.THREAD))</span><br><span class="line">                .andThreadPoolPropertiesDefaults(HystrixThreadPoolProperties.Setter()</span><br><span class="line">                        .withCoreSize(20)</span><br><span class="line">                                .withMaximumSize(50).withMaxQueueSize(65535)</span><br><span class="line">                                .withQueueSizeRejectionThreshold(200) //队列大于此值时抛异常</span><br><span class="line">                        .withKeepAliveTimeMinutes(1)</span><br><span class="line">                                .withMetricsRollingStatisticalWindowInMilliseconds(20000)</span><br><span class="line">                        .withMetricsRollingStatisticalWindowBuckets(20)</span><br><span class="line">                ));</span><br><span class="line">        this.id = id;</span><br><span class="line">    &#125;</span><br><span class="line">    @Override</span><br><span class="line">    protected String run() &#123;</span><br><span class="line">        return &quot;ValueFromHashMap_&quot; + id;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>对于信号量，可以配置如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">public class CommandUsingSemaphoreIsolation extends HystrixCommand&lt;String&gt; &#123;</span><br><span class="line">    private final int id;</span><br><span class="line">    public CommandUsingSemaphoreIsolation(int id) &#123;</span><br><span class="line">        super(Setter.withGroupKey(HystrixCommandGroupKey.Factory.asKey(&quot;ExampleGroup&quot;))</span><br><span class="line">                .andCommandPropertiesDefaults(HystrixCommandProperties.Setter()</span><br><span class="line">                                .withExecutionIsolationStrategy(ExecutionIsolationStrategy.SEMAionStrategy.SEMAPHORE)</span><br><span class="line">                        .withExecutionIsolationSemaphoreMaxConcurrentRequests(20)));</span><br><span class="line">        this.id = id;</span><br><span class="line">    &#125;</span><br><span class="line">    @Override</span><br><span class="line">    protected String run() &#123;</span><br><span class="line">        return &quot;ValueFromHashMap_&quot; + id; </span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="熔断机制"><a href="#熔断机制" class="headerlink" title="熔断机制"></a>熔断机制</h2><p>熔断是指在因某些原因导致系统过载时，为了防止其拖垮整个服务而采取的措施。当熔断开关打开是，系统将关闭对某一服务的请求，转而走降级逻辑或向调用者抛错。</p>
+<p>Hystrix中实现了断路器逻辑，并为每个commandKey标识的服务创建一个断路器。HystrixCommand和HystrixObservableCommand将断路器作为其属性，作用在命令执行过程中。默认情况下，请求都会走熔断判断逻辑。可以通过circuitBreaker.forceClosed=true来使熔断器失效。或者circuitBreaker.forceOpen=true是的所有请求都走降级逻辑。</p>
+<p>断路器共有三个状态：OPEN、CLOSE、HALF-OPEN</p>
+<ul>
+<li>OPEN开启状态下，所有的请求都被降级；</li>
+<li>CLOSE关闭状态下，请求都正常执行；</li>
+<li>HALF-OPEN半开状态，断路器为开启状态一段时建后会放过一个请求，如果这个请求失败则将断路器改为OPEN状态，成功则将断路器设置为CLOSE状态。</li>
+</ul>
+<p>下面简单开下Hystirx断路器如何生效的：</p>
+<p>Hystrix命令执行完之后，会生成很多计量信息，如命令执行结果类型，指一段时间内，命令执行成功、失败、超时以及被拒绝的数量。<br>这些度量信息是如何记录的呢？ Hystrix使用滑动窗口的方式来保存度量数据，它只会保存最近时间段（rollingStats.timeInMilliseconds）内的所有命令执行结果信息，并且为了更好地使用它们，会将整个时间段的度量分为rollingStats.numBuckets个桶来保存；断路器执行时，会根据这些数据来计算错误率供断路器使用。</p>
+<p>断路器的CLOSE状态向OPEN状态转换时，需要满足以下条件：</p>
+<ul>
+<li>滑动窗口周期内的总请求数量大于阈值HystrixCommandProperties.circuitBreakerRequestVolumeThreshold();</li>
+<li>滑动窗口周期内请求错误率超过设置的阈值 HystrixCommandProperties.circuitBreakerErrorThresholdPercentage()</li>
+</ul>
+<p>断路器由OPEN -&gt; HALF-OPEN -&gt; CLOSE转换时，需要满足条件：<br>在断路器开启HystrixCommandProperties.circuitBreakerSleepWindowInMilliseconds后，会放过一个请求，此时断路器状态更改为HALF-OPEN状态，此请求成功时，则由HALF-OPEN状态转向CLOSE。配置如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">public class CommandUsingCircuitBreaker extends HystrixCommand&lt; String&gt; &#123;</span><br><span class="line">    private final int id;</span><br><span class="line">    public CommandUsingCircuitBreaker(int id) &#123; super(Setter.withGroupKey(HystrixCommandGroupKey.Factory.asKey( &quot;ExampleGroup&quot;))</span><br><span class="line">            .andCommandPropertiesDefaults(HystrixCommandProperties.Setter()</span><br><span class="line">                            .withExecutionIsolationStrategy(ExecutionIsolationStrategy.THREAD)</span><br><span class="line">                            .withCircuitBreakerEnabled(true) //熔断器</span><br><span class="line">                            .withCircuitBreakerRequestVolumeThreshold(20) // 熔断器起作用的请求数量阈值</span><br><span class="line">                            .withCircuitBreakerSleepWindowInMilliseconds(500)// 休眠事件</span><br><span class="line">                            .withCircuitBreakerErrorThresholdPercentage (50)// 断路器打开错误的边界</span><br><span class="line">                    .withCircuitBreakerForceClosed(false)</span><br><span class="line">                    .withCircuitBreakerForceOpen(false) )</span><br><span class="line">            );</span><br><span class="line">        this.id = id;</span><br><span class="line">    &#125;</span><br><span class="line">    @Override</span><br><span class="line">    protected String run() &#123;</span><br><span class="line">        return &quot;ValueFromHashMap_&quot; + id; &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="请求合并"><a href="#请求合并" class="headerlink" title="请求合并"></a>请求合并</h2><p>HystrixCollapser用于将多个请求合并成一个请求发出。将多个请求合并成一个请求的好处是：可以减少线程的数量和网络连接的数量，减少系统代价。HystrixCollapser使用全自动的方式来实现合并请求，而不需要开发人员以硬编码的形式来支持批量请求。</p>
+<p>但是它也是有一定的代价：它需要等待一个窗口期（timerDelayInMilliseconds默认10ms）来接受批量请求，然后将请求批量发送。因此对延迟要求低的服务不推荐使用此方法。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line">class CommandCollapserGetValueForKey extends HystrixCollapser&lt;List&lt;String&gt;, String, Integer&gt; &#123;</span><br><span class="line">    private final Integer key;</span><br><span class="line">    private static final Setter setter = Setter.withCollapserKey(HystrixCollapserKey.Factory.asKey(&quot;commandCollapserGetValueFo rKey&quot;))</span><br><span class="line">            .andCollapserPropertiesDefaults(HystrixCollapserProperties.Setter()</span><br><span class="line">                    .withMaxRequestsInBatch(20)//最大批量请求数量</span><br><span class="line">                    .withTimerDelayInMilliseconds(5).withRequestCacheEnabled(true)</span><br><span class="line">            ).andScope(Scope.REQUEST);</span><br><span class="line">    public CommandCollapserGetValueForKey(Integer key) &#123;</span><br><span class="line">        super(setter);</span><br><span class="line">        this.key = key;</span><br><span class="line">    &#125;</span><br><span class="line">    @Override</span><br><span class="line">    public Integer getRequestArgument() &#123;</span><br><span class="line">        return key;</span><br><span class="line">    &#125;</span><br><span class="line">    @Override</span><br><span class="line">    protected HystrixCommand&lt;List&lt;String&gt;&gt; createCommand(final Collection&lt;CollapsedRequest&lt;String, Integer&gt;&gt; requests) &#123;</span><br><span class="line">        return new BatchCommand(requests);</span><br><span class="line">    &#125;</span><br><span class="line">    @Override</span><br><span class="line">    protected void mapResponseToRequests(List&lt;String&gt; batchResonse, Collection&lt;CollapsedRequest&lt;String, Integer&gt;&gt; requests) &#123;</span><br><span class="line">        int count = 0;</span><br><span class="line">        for (CollapsedRequest&lt;String, Integer&gt; request : requests) &#123;</span><br><span class="line">            request.setResponse(batchResponse.get(count++));</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    private static final class BatchCommand extends HystrixCommand&lt;List&lt;String&gt;&gt; &#123;</span><br><span class="line">        private final Collection&lt;CollapsedRequest&lt;String, Integer&gt;&gt; requests;</span><br><span class="line">        private BatchCommand(Collection&lt;CollapsedRequest&lt;String, Integer&gt;&gt; requests) &#123;</span><br><span class="line">            super(Setter.withGroupKey(HystrixCommandGroupKey.Factory.asKey(&quot;ExampleGroup&quot;))</span><br><span class="line">                    .andCommandKey(HystrixCommandKey.Factory.as</span><br><span class="line">                            Key(&quot;GetValueForKey&quot;)));</span><br><span class="line">            this.requests = requests;</span><br><span class="line">        &#125;</span><br><span class="line">        @Override</span><br><span class="line">        protected List&lt;String&gt; run() &#123;</span><br><span class="line">            ArrayList&lt;String&gt; response = new ArrayList&lt;String&gt;( for (CollapsedRequest&lt;String, Integer&gt; request : re</span><br><span class="line">            response.add(&quot;ValueForKey: &quot; + request.getArgum</span><br><span class="line">        &#125;</span><br><span class="line">        return response;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="注解使用"><a href="#注解使用" class="headerlink" title="注解使用"></a>注解使用</h2><p>在前面的示范中可以看出接入Hystrix需要做很多硬编码工作，对代码侵入很大。因此开源社区的贡献者开发了Hystrix的注解接入方式，旨在帮助开发人员提高效率。基于注解的方式需要核外导入依赖。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">&lt;dependency&gt;</span><br><span class="line">    &lt;groupId&gt;com.netflix.hystrix&lt;/groupId&gt;</span><br><span class="line">    &lt;artifactId&gt;hystrix-javanica&lt;/artifactId&gt;</span><br><span class="line">    &lt;version&gt;$&#123;hystrix.version&#125;&lt;/version&gt;</span><br><span class="line">&lt;/dependency&gt;</span><br></pre></td></tr></table></figure>
+<p>hystrix-javanica使用AspectJ来实施切面。所以需要进行如下配置：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">&lt;aop:aspectj-autoproxy proxy-target-class=&quot;true&quot; /&gt;</span><br></pre></td></tr></table></figure>
+<h3 id="使用方式"><a href="#使用方式" class="headerlink" title="使用方式"></a>使用方式</h3><h4 id="同步方式"><a href="#同步方式" class="headerlink" title="同步方式"></a>同步方式</h4><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">public class UserService &#123;</span><br><span class="line">    //groupKey默认取Class名, commandKey默认取方法名</span><br><span class="line">    @HystrixCommand(groupKey = &quot;UserGroup&quot;, commandKey = &quot;getUserById&quot;,</span><br><span class="line">            commandProperties = &#123;</span><br><span class="line">                    @HystrixProperty(name = &quot;execution.isolation.strategy&quot;, value = &quot;THREAD&quot;),</span><br><span class="line">                    @HystrixProperty(name = &quot;execution.isolation.thread.timeoutInMilliseconds&quot;, value = &quot;500&quot;)&#125;</span><br><span class="line">    )</span><br><span class="line">    public User getUserById(String id) &#123;</span><br><span class="line">        return userResource.getUserById(id);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="异步方式"><a href="#异步方式" class="headerlink" title="异步方式"></a>异步方式</h4><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">public class UserService &#123;</span><br><span class="line">    //groupKey默认取Class名, commandKey默认取方法名</span><br><span class="line">    @HystrixCommand(groupKey = &quot;UserGroup&quot;, commandKey = &quot;getUserById&quot;)</span><br><span class="line">    public Future&lt;User&gt; getUserByIdAsync(String id) &#123;</span><br><span class="line">        return new AsyncResult&lt;User&gt;() &#123;</span><br><span class="line">            @Override</span><br><span class="line">            public User invoke() &#123;</span><br><span class="line">                return userResource.getUserById(id);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="Hystrix-Collapser"><a href="#Hystrix-Collapser" class="headerlink" title="Hystrix Collapser"></a>Hystrix Collapser</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">@HystrixCollapser(batchMethod = &quot;getUserByIds&quot;) </span><br><span class="line">public Future&lt;User&gt; getUserByIdAsync(String id) &#123;</span><br><span class="line">        return null; </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="动态配置"><a href="#动态配置" class="headerlink" title="动态配置"></a>动态配置</h2><p>Hystrix默认支持动态配置，在运行时改变参数。它支持以特定的时间周期来执行配置拉取和替换，使用它的动态配置只需要实现PolledConfigurationSource接口，并在其中实现配置拉取的逻辑即可。如下，每3000秒拉取一次更新的配置：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">public class HystrixDynamicConfigurationManager implements InitializingBean &#123;</span><br><span class="line">    @Resource</span><br><span class="line">    private MtConfigClient mtConfigClient;</span><br><span class="line">    @Override</span><br><span class="line">    public void afterPropertiesSet() throws Exception &#123;</span><br><span class="line">        AbstractConfiguration configInstance = ConfigurationMan</span><br><span class="line">        ager.getConfigInstance();</span><br><span class="line">        AbstractPollingScheduler scheduler = new FixedDelayPoll ingScheduler(0, 3000, true);</span><br><span class="line">        PolledConfigurationSource source = new MtPoolConfigSour ce(mtConfigClient, &quot;hystrixConfig&quot;);</span><br><span class="line">        scheduler.setIgnoreDeletesFromSource(true);</span><br><span class="line">        scheduler.startPolling(source, configInstance);</span><br><span class="line">        ConfigurationManager.install(configInstance);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="Dashboard"><a href="#Dashboard" class="headerlink" title="Dashboard"></a>Dashboard</h2><p>Hystrix可以做到实时地监控命令的度量信息，观察命令的执行情况。通过实时观察这些信息，我们可以做实时调整设置，如超时时间、观察到系统的运行情况：延时、超时数量、断路器是否打开等，当系统出现故障时可以第一时间做出应对。关于Dashboard的使用参考官方文档。</p>
+<p>####参考<br><a href="https://github.com/Netflix/Hystrix/wiki" target="_blank" rel="noopener">Hystrix Wiki</a></p>
+<p><a href="https://github.com/Netflix/Hystrix/wiki/How-To-Use" target="_blank" rel="noopener">How-To-Use</a></p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/hystrix/" rel="tag"># hystrix</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/10/29/hystrix使用（一）/" rel="next" title="hystrix使用（一）">
+                <i class="fa fa-chevron-left"></i> hystrix使用（一）
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/11/19/kafka学习笔记（一）kafka简介/" rel="prev" title="kafka学习笔记（一）kafka简介">
+                kafka学习笔记（一）kafka简介 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">Zhu Sheng</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">26</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#隔离策略"><span class="nav-number">1.</span> <span class="nav-text">隔离策略</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#线程隔离"><span class="nav-number">1.0.1.</span> <span class="nav-text">线程隔离</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#信号量隔离"><span class="nav-number">1.0.2.</span> <span class="nav-text">信号量隔离</span></a></li></ol></li></ol><li class="nav-item nav-level-2"><a class="nav-link" href="#熔断机制"><span class="nav-number">2.</span> <span class="nav-text">熔断机制</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#请求合并"><span class="nav-number">3.</span> <span class="nav-text">请求合并</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#注解使用"><span class="nav-number">4.</span> <span class="nav-text">注解使用</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#使用方式"><span class="nav-number">4.1.</span> <span class="nav-text">使用方式</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#同步方式"><span class="nav-number">4.1.1.</span> <span class="nav-text">同步方式</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#异步方式"><span class="nav-number">4.1.2.</span> <span class="nav-text">异步方式</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Hystrix-Collapser"><span class="nav-number">4.2.</span> <span class="nav-text">Hystrix Collapser</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#动态配置"><span class="nav-number">5.</span> <span class="nav-text">动态配置</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Dashboard"><span class="nav-number">6.</span> <span class="nav-text">Dashboard</span></a></li></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Zhu Sheng</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

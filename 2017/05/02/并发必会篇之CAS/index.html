@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="java,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言CAS(compare and swap)在并发领域有着不可或缺的作用，并发大神Doug lea在线程同步中大量使用cas,写出很多颇具艺术性的代码,可以说没有cas，就没有java.util.concurrent包。 CAS的概念想必大家都很清楚，就是字面意思”比较替换”,cas中有三个值：当前内存值V,预期内存值A,要更新的值B。比较内存值V与预期值A是否相同，若是则将V更新成B，否则do">
+<meta name="keywords" content="java">
+<meta property="og:type" content="article">
+<meta property="og:title" content="并发必会篇之CAS">
+<meta property="og:url" content="http://yoursite.com/2017/05/02/并发必会篇之CAS/index.html">
+<meta property="og:site_name" content="宁静致远">
+<meta property="og:description" content="前言CAS(compare and swap)在并发领域有着不可或缺的作用，并发大神Doug lea在线程同步中大量使用cas,写出很多颇具艺术性的代码,可以说没有cas，就没有java.util.concurrent包。 CAS的概念想必大家都很清楚，就是字面意思”比较替换”,cas中有三个值：当前内存值V,预期内存值A,要更新的值B。比较内存值V与预期值A是否相同，若是则将V更新成B，否则do">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-07-24T06:26:17.800Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="并发必会篇之CAS">
+<meta name="twitter:description" content="前言CAS(compare and swap)在并发领域有着不可或缺的作用，并发大神Doug lea在线程同步中大量使用cas,写出很多颇具艺术性的代码,可以说没有cas，就没有java.util.concurrent包。 CAS的概念想必大家都很清楚，就是字面意思”比较替换”,cas中有三个值：当前内存值V,预期内存值A,要更新的值B。比较内存值V与预期值A是否相同，若是则将V更新成B，否则do">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2017/05/02/并发必会篇之CAS/">
+
+
+
+
+
+  <title>并发必会篇之CAS | 宁静致远</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">宁静致远</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">波起潮落守浮沉</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/05/02/并发必会篇之CAS/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Zhu Sheng">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="宁静致远">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">并发必会篇之CAS</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-05-02T11:09:30+08:00">
+                2017-05-02
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/java/" itemprop="url" rel="index">
+                    <span itemprop="name">java</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>CAS(compare and swap)在并发领域有着不可或缺的作用，并发大神Doug lea在线程同步中大量使用cas,写出很多颇具艺术性的代码,可以说没有cas，就没有java.util.concurrent包。</p>
+<p>CAS的概念想必大家都很清楚，就是字面意思”比较替换”,cas中有三个值：当前内存值V,预期内存值A,要更新的值B。比较内存值V与预期值A是否相同，若是则将V更新成B，否则do nothing。</p>
+<h2 id="使用"><a href="#使用" class="headerlink" title="使用"></a>使用</h2><p>从一个i++问题开始</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">public Test implements Runnable&#123;</span><br><span class="line">    volatile int i;</span><br><span class="line">    public void run() &#123;</span><br><span class="line">        i++;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>我们知道当多个线程并发执行run方法的时候，是无法保证线程安全的。因为i++不是原子操作，即便i有volatile关键字修饰，但是volatile只能保证内存可见性，不能保证线程同步，根据jvm内存模型可以知道最后的执行结果是与预期有偏差的。那么如果得到正确的结果，当然将i++放在一个synchronized方法中来强制线程同步固然可行，但是带来频繁的线程上下文切换的开销，考虑性能并不合适。这里我们使用AtomicInteger来解决。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">public class Test2 &#123;</span><br><span class="line">    private static AtomicInteger i = new AtomicInteger(0);</span><br><span class="line">    public static void increment() &#123;</span><br><span class="line">        i.getAndIncrement();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这是我们会发现i的自增在并发情况下总是符合预期的，因为它是原子操作，而这种原子操作正是通过cas来保证。下面通过代码来看下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">public final int getAndIncrement() &#123;</span><br><span class="line">        return unsafe.getAndAddInt(this, valueOffset, 1);</span><br><span class="line">    &#125;</span><br><span class="line"> //unsafe. getAndAddInt</span><br><span class="line"> public final int getAndAddInt(Object var1, long var2, int var4) &#123;</span><br><span class="line">        int var5;</span><br><span class="line">        do &#123;</span><br><span class="line">            var5 = this.getIntVolatile(var1, var2);</span><br><span class="line">        &#125; while(!this.compareAndSwapInt(var1, var2, var5, var5 + var4));</span><br><span class="line">        return var5;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>当两个线程A和B同时执行increment的时候，因为value的原始值是0，也就是在内存中value的值是0，根据jvm内存模型，线程A和B中各自保留一份value副本，值为0。</p>
+<p>根据java内存模型,java内存分为工作内存和主存。工作内存即java线程的本地内存，是单独给某个线程分配的，存储局部变量等，同时也会复制主存的共享变量作为本地的副本，目的是为了减少和主存通信的频率，提高效率。线程对共享变量的操作的都是对本地的副本进行操作，在线程执行完毕后刷回主存，而volatile保存内存可见性的含义就是线程每次读取都是从主存读取，更新完成后立即刷回主存，保证线程每次拿共享变量是其他线程的更新对当前线程是可见的。</p>
+<p>我们继续分析上面并发执行increment的情况，线程A执行compareAndSwapInt（）从主存拿到value的值是0，而它预期的旧值也是0，所以将value更新成1并刷回主存；线程B同样执行compareAndSwapInt，发现从主存拿到value的值是1，而它预期的值为0，所以本次更新失败，只是将本地value更新成1，继续下一次cas;整个过程中，利用CAS保证了对于value的修改的并发安全。</p>
+<h2 id="深入原理"><a href="#深入原理" class="headerlink" title="深入原理"></a>深入原理</h2><p>compareAndSwapInt是一个本地方法，位于unsafe类中，unsafe类是底层操作为上层java开的一个后门，大多是native方法。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">public final native boolean compareAndSwapInt(Object paramObject, long paramLong, int paramInt1, int paramInt2);</span><br></pre></td></tr></table></figure>
+<p>它的实现在unsafe.cpp中，流程如下：先尝试拿到value在内存中的值，然后Atomic::cmpxchg实现即将更新的值和原内存值比较替换。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">// Adding a lock prefix to an instruction on MP machine</span><br><span class="line">// VC++ doesn&apos;t like the lock prefix to be on a single line</span><br><span class="line">// so we can&apos;t insert a label after the lock prefix.</span><br><span class="line">// By emitting a lock prefix, we can define a label after it.</span><br><span class="line">#define LOCK_IF_MP(mp) __asm cmp mp, 0  \</span><br><span class="line">                       __asm je L0      \</span><br><span class="line">                       __asm _emit 0xF0 \</span><br><span class="line">                       __asm L0:</span><br><span class="line">inline jint     Atomic::cmpxchg    (jint     exchange_value, volatile jint*     dest, jint     compare_value) &#123;</span><br><span class="line">  // alternative for InterlockedCompareExchange</span><br><span class="line">  int mp = os::is_MP();</span><br><span class="line">  __asm &#123;</span><br><span class="line">    mov edx, dest</span><br><span class="line">    mov ecx, exchange_value</span><br><span class="line">    mov eax, compare_value</span><br><span class="line">    LOCK_IF_MP(mp)</span><br><span class="line">    cmpxchg dword ptr [edx], ecx</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面是cmpxchg的intel x86的实现。如代码所示（实际是通过别人解释的）程序会根据当前处理器的类型来决定是否为cmpxchg指令添加lock前缀。如果程序是在多处理器上运行，就为cmpxchg指令加上lock前缀（lock cmpxchg）。反之，如果程序是在单处理器上运行，就省略lock前缀，因为单处理器自身会维护单处理器内的顺序一致性，不需要lock前缀提供的内存屏障效果。</p>
+<p>intel手册对lock前缀的说明如下：</p>
+<ol>
+<li>确保后续指令执行的原子性。在Pentium及之前的处理器中，带有lock前缀的指令在执行期间会锁住总线，使得其它处理器暂时无法通过总线访问内存，很显然，这个开销很大。在新的处理器中，Intel使用缓存锁定来保证指令执行的原子性，缓存锁定将大大降低lock前缀指令的执行开销。</li>
+<li>禁止该指令与前面和后面的读写指令重排序。</li>
+<li>把写缓冲区的所有数据刷新到内存中。</li>
+</ol>
+<p>现代cpu的寄存器与内存之间存在L1,L2,L3高速缓存，频繁使用的内存会缓存在高速缓存中，此时以缓存锁定来代替总线锁定，利用缓存一致性机制来保证操作的原子性。从上面二三点我们也可以看出cas同时包含了volatile读和写的内存语义。</p>
+<h2 id="cas存在问题"><a href="#cas存在问题" class="headerlink" title="cas存在问题"></a>cas存在问题</h2><p>尽管cas能够实现线程的lock-free,在很多并发场景中提供比锁更优的性能，但是cas也存在如下几个问题：</p>
+<ul>
+<li>ABA问题</li>
+</ul>
+<p>如果一个值原来是A，变成了B，又变成了A，那么使用CAS进行检查时会发现它的值没有发生变化，则cas操作成功，这样可能会存在问题。</p>
+<p>解决办法：在变量前面追加上版本号，每次变量更新的时候把版本号加一，那么A－B－A 就会变成1A-2B-3A。atomic包提供了一个类AtomicStampedReference来解决ABA问题，增加当前标记与预期标志的比较。</p>
+<ul>
+<li>循环时间长开销大</li>
+</ul>
+<p>对于资源竞争严重的情况，CAS自旋的概率会比较大，从而浪费更多的CPU资源。</p>
+<p>解决办法：PAUSE指令。PAUSE指令会在循环等待时提示处理器，处理器利用这个提示可以避免在大多数情况下的内存顺序违规，这将大幅提升性能。</p>
+<ul>
+<li>只能保证一个共享变量的原子操作</li>
+</ul>
+<p>解决办法：1.可以用锁。 2.合并这两个变量 Atomic包提供的atomicRefrence应用保证对象之前的原子性，可以把多个变量放在同一个对象里来进行cas操作。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/java/" rel="tag"># java</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/04/08/redis简易消息队列实现/" rel="next" title="redis简易消息队列实现">
+                <i class="fa fa-chevron-left"></i> redis简易消息队列实现
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/05/09/延时队列delayQueue/" rel="prev" title="延时队列delayQueue">
+                延时队列delayQueue <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">Zhu Sheng</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">26</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#使用"><span class="nav-number">2.</span> <span class="nav-text">使用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#深入原理"><span class="nav-number">3.</span> <span class="nav-text">深入原理</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#cas存在问题"><span class="nav-number">4.</span> <span class="nav-text">cas存在问题</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Zhu Sheng</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="java,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="简介WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&amp;gt;WeakReference-&amp;gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHashM">
+<meta name="keywords" content="java">
+<meta property="og:type" content="article">
+<meta property="og:title" content="weakHashMap与GC">
+<meta property="og:url" content="http://yoursite.com/2018/03/08/weakHashMap与GC/index.html">
+<meta property="og:site_name" content="宁静致远">
+<meta property="og:description" content="简介WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&amp;gt;WeakReference-&amp;gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHashM">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2019-07-23T09:03:20.905Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="weakHashMap与GC">
+<meta name="twitter:description" content="简介WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&amp;gt;WeakReference-&amp;gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHashM">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2018/03/08/weakHashMap与GC/">
+
+
+
+
+
+  <title>weakHashMap与GC | 宁静致远</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">宁静致远</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">波起潮落守浮沉</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2018/03/08/weakHashMap与GC/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Zhu Sheng">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="宁静致远">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">weakHashMap与GC</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-03-08T15:56:15+08:00">
+                2018-03-08
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/java/" itemprop="url" rel="index">
+                    <span itemprop="name">java</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>WeakHashMap结构上与HashMap比较类型,内部都是通过Entry[]数组来组织数据，只不过WeakHashMap的Entry[]有些特殊，它的继承体系结构是Entry-&gt;WeakReference-&gt;Reference，这种结构保证了WeakHashMap的功能。先来看下API文档中对WeakHashMa的描述：以弱键 实现的基于哈希表的 Map。在 WeakHashMap中，当某个键不再正常使用时，将自动移除其条目。更精确地说，对于一个给定的键，其映射的存在并不阻止垃圾回收器对该键的丢弃，这就使该键成为可终止的，被终止，然后被回收。丢弃某个键时，其条目从映射中有效地移除。</p>
+<p>WeakHashMap的行为取决于垃圾回收器的动作。由于垃圾回收器是由jvm调度的，gc可以发生在WeakHashMap对象生命周期的任何时候，所以WeakHashMap的表现为，即使对 WeakHashMap 实例进行同步，并且没有调用任何赋值方法，在一段时间后 size 方法也可能返回较小的值，对于 isEmpty 方法，可以先返回true，然后返回true，对于给定的键，containsKey方法返回true,然后返回false，对于给定的键,get方法返回一个值,但接着返回null。总而言之就是只要在垃圾回收器清除某个键的弱引用之后，该键才会自动移除。</p>
+<h2 id="关于引用"><a href="#关于引用" class="headerlink" title="关于引用"></a>关于引用</h2><p>深入了解WeakHashMap之前，我们必须对java中的几种引用类型有着明确的认识：</p>
+<ul>
+<li><p>强引用</p>
+<p>强引用是相对其他类型引用而言的。如果一个对象具有强引用，GC绝不会回收它，当内存空间不足时，JVM宁愿抛出OOM。new出来的对象是典型的强引用。</p>
+</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">//强引用</span><br><span class="line">Object StrongReference = new Object();</span><br></pre></td></tr></table></figure>
+<ul>
+<li><p>软引用</p>
+<p>如果一个对象具有软引用，当内存空间不足，GC会回收这些对象的内存，通常可以使用软引用构建敏感数据的缓存。SoftReference中还有个timestamp字段，表示软引用还可以通过设定时间戳进行回收。软引用可以通过get方法获取强引用。声明如下：</p>
+</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">//SoftReference</span><br><span class="line">SoftReference&lt;Object&gt; sr = new SoftReference&lt;~&gt;(new Object());</span><br><span class="line">Object StrongReference = (Object) SoftRerence.get();</span><br></pre></td></tr></table></figure>
+<ul>
+<li><p>弱引用</p>
+<p>如果一个对象具有弱引用，在GC线程扫描内存区域的过程中，不管当前内存空间足够与否，都会回收内存，使用弱引用 构建非敏感数据的缓存。声明如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"> //WeakReference</span><br><span class="line">WeakReference&lt;Object&gt; wf = new WeakReference&lt;~&gt;(new Object());</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>虚引用</p>
+<p>如果一个对象仅持有虚引用，在任何时候都可能被垃圾回收，虚引用与软引用和弱引用的一个区别在于：虚引用必须和引用队列联合使用，虚引用主要用来跟踪对象被垃圾回收的活动。</p>
+</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">//PhantomReference</span><br><span class="line">PhantomReference&lt;Object&gt; phantomReference=new PhantomReference&lt;Object&gt;(new User(),new ReferenceQueue&lt;Object&gt;());</span><br></pre></td></tr></table></figure>
+<h2 id="WeakHashMap与GC"><a href="#WeakHashMap与GC" class="headerlink" title="WeakHashMap与GC"></a>WeakHashMap与GC</h2><p>前面我们讲到WeakHashMap中Entry[]有着Entry-&gt;WeakReference-&gt;Reference这样一个继承结构，我们先来看下Reference类。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">private static Lock lock = new Lock();</span><br><span class="line">/* List of References waiting to be enqueued.  The collector adds</span><br><span class="line"> * References to this list, while the Reference-handler thread removes</span><br><span class="line"> * them.  This list is protected by the above lock object. The</span><br><span class="line"> * list uses the discovered field to link its elements.</span><br><span class="line"> */</span><br><span class="line">private static Reference&lt;Object&gt; pending = null;</span><br><span class="line">/* High-priority thread to enqueue pending References</span><br><span class="line"> */</span><br><span class="line">private static class ReferenceHandler extends Thread &#123;</span><br><span class="line">    private static void ensureClassInitialized(Class&lt;?&gt; clazz) &#123;</span><br><span class="line">        try &#123;</span><br><span class="line">            Class.forName(clazz.getName(), true, clazz.getClassLoader());</span><br><span class="line">        &#125; catch (ClassNotFoundException e) &#123;</span><br><span class="line">            throw (Error) new NoClassDefFoundError(e.getMessage()).initCause(e);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    static &#123;</span><br><span class="line">        // pre-load and initialize InterruptedException and Cleaner classes</span><br><span class="line">        // so that we don&apos;t get into trouble later in the run loop if there&apos;s</span><br><span class="line">        // memory shortage while loading/initializing them lazily.</span><br><span class="line">        ensureClassInitialized(InterruptedException.class);</span><br><span class="line">        ensureClassInitialized(Cleaner.class);</span><br><span class="line">    &#125;</span><br><span class="line">    ReferenceHandler(ThreadGroup g, String name) &#123;</span><br><span class="line">        super(g, name);</span><br><span class="line">    &#125;</span><br><span class="line">    public void run() &#123;</span><br><span class="line">        while (true) &#123;</span><br><span class="line">            tryHandlePending(true);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面是Reference类的部分代码，可以看到Reference中有一个全局的锁对象：lock;有一个静态变量pending;在静态代码块中启动一个ReferenceHandler线程，启动完成后处于wait状态，它在一个Lock同步锁模块中等待。那么WeakHashMap中key/value如何自动回收跟这些有什么关系呢。</p>
+<p>我们假设JVM使用cms收集器（使用其他收集器对于弱引用的回收原理相同）。JVM 在进行CMS GC的时候，会创建一个ConcurrentMarkSweepThread（简称CMST）线程去进行GC，ConcurrentMarkSweepThread线程被创建的同时会创建一个SurrogateLockerThread（简称SLT）线程并且启动它，SLT启动之后，处于等待阶段。CMST开始GC时，会发一个消息给SLT让它去获取Java层Reference对象的全局锁：Lock。 直到CMS GC完毕之后，JVM 会将WeakHashMap中所有被回收的对象所属的WeakReference容器对象放入到Reference 的pending属性当中（每次GC完毕之后，pending属性基本上都不会为null了），然后通知SLT释放并且notify全局锁:Lock。此时激活了ReferenceHandler线程的run方法，使其脱离wait状态，开始工作了。ReferenceHandler这个线程会将pending中的所有WeakReference对象都移动到它们各自的列队当中，比如当前这个WeakReference属于某个WeakHashMap对象，那么它就会被放入相应的ReferenceQueue列队里面（该列队是链表结构）。 当我们下次从WeakHashMap对象里面get、put数据或者调用size方法的时候，WeakHashMap就会将ReferenceQueue列队中的WeakReference一一poll出来去和Entry[]数据做比较，如果发现相同的，则说明这个Entry所保存的对象已经被GC掉了，那么将Entry[]内的Entry对象剔除掉，这样就完成的key/value的自动回收。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">/**</span><br><span class="line">  * Reference queue for cleared WeakEntries</span><br><span class="line"> */</span><br><span class="line">private final ReferenceQueue&lt;Object&gt; queue = new ReferenceQueue&lt;&gt;();</span><br></pre></td></tr></table></figure>
+<p>这是WeakHashMap中的ReferenceQueue定义，注释就可以知道这是用来清除WeakEntries的。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">/**</span><br><span class="line">    * Expunges stale entries from the table.</span><br><span class="line">    */</span><br><span class="line">   private void expungeStaleEntries() &#123;</span><br><span class="line">       for (Object x; (x = queue.poll()) != null; ) &#123;</span><br><span class="line">           synchronized (queue) &#123;</span><br><span class="line">               @SuppressWarnings(&quot;unchecked&quot;)</span><br><span class="line">                   Entry&lt;K,V&gt; e = (Entry&lt;K,V&gt;) x;</span><br><span class="line">               int i = indexFor(e.hash, table.length);</span><br><span class="line">               Entry&lt;K,V&gt; prev = table[i];</span><br><span class="line">               Entry&lt;K,V&gt; p = prev;</span><br><span class="line">               while (p != null) &#123;</span><br><span class="line">                   Entry&lt;K,V&gt; next = p.next;</span><br><span class="line">                   if (p == e) &#123;</span><br><span class="line">                       if (prev == e)</span><br><span class="line">                           table[i] = next;</span><br><span class="line">                       else</span><br><span class="line">                           prev.next = next;</span><br><span class="line">                       // Must not null out e.next;</span><br><span class="line">                       // stale entries may be in use by a HashIterator</span><br><span class="line">                       e.value = null; // Help GC</span><br><span class="line">                       size--;</span><br><span class="line">                       break;</span><br><span class="line">                   &#125;</span><br><span class="line">                   prev = p;</span><br><span class="line">                   p = next;</span><br><span class="line">               &#125;</span><br><span class="line">           &#125;</span><br><span class="line">       &#125;</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
+<p>expungeStaleEntries方法描述了如何清除，getTable,size等方法会首先调用该方法。以上就是弱引用的清除过程。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/java/" rel="tag"># java</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/03/06/理解Reactor与Proactor/" rel="next" title="理解Reactor与Proactor">
+                <i class="fa fa-chevron-left"></i> 理解Reactor与Proactor
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2018/04/01/无锁框架Disruptor/" rel="prev" title="无锁框架Disruptor">
+                无锁框架Disruptor <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">Zhu Sheng</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">26</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#简介"><span class="nav-number">1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#关于引用"><span class="nav-number">2.</span> <span class="nav-text">关于引用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#WeakHashMap与GC"><span class="nav-number">3.</span> <span class="nav-text">WeakHashMap与GC</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Zhu Sheng</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

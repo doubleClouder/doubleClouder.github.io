@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="java,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="描述对于高并发的系统而言，缓存、限流和降级是保证服务可用的三大利器。由于缓存的性能越来越高，对于系统能抗住高并发流量的作用自然不必多说；熔断和降级是保证服务可用的最后一道屏障，它是在下游服务故障或者系统负荷过高时不得不做的处理，通过一些mock的处理让服务暂时看起来可用，待高峰过后重新恢复。但在有些场景下，可以用来控制服务的请求速率，如双十一和12306的限流。 限流算法常见的限流算法有漏桶算法和">
+<meta name="keywords" content="java">
+<meta property="og:type" content="article">
+<meta property="og:title" content="接口限流之RateLimiter">
+<meta property="og:url" content="http://yoursite.com/2017/07/14/接口限流之RateLimiter/index.html">
+<meta property="og:site_name" content="宁静致远">
+<meta property="og:description" content="描述对于高并发的系统而言，缓存、限流和降级是保证服务可用的三大利器。由于缓存的性能越来越高，对于系统能抗住高并发流量的作用自然不必多说；熔断和降级是保证服务可用的最后一道屏障，它是在下游服务故障或者系统负荷过高时不得不做的处理，通过一些mock的处理让服务暂时看起来可用，待高峰过后重新恢复。但在有些场景下，可以用来控制服务的请求速率，如双十一和12306的限流。 限流算法常见的限流算法有漏桶算法和">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="http://clouder123.oss-cn-beijing.aliyuncs.com/leaky_bucket.GIF">
+<meta property="og:image" content="http://clouder123.oss-cn-beijing.aliyuncs.com/token_bucket.JPG">
+<meta property="og:updated_time" content="2019-03-06T09:53:23.179Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="接口限流之RateLimiter">
+<meta name="twitter:description" content="描述对于高并发的系统而言，缓存、限流和降级是保证服务可用的三大利器。由于缓存的性能越来越高，对于系统能抗住高并发流量的作用自然不必多说；熔断和降级是保证服务可用的最后一道屏障，它是在下游服务故障或者系统负荷过高时不得不做的处理，通过一些mock的处理让服务暂时看起来可用，待高峰过后重新恢复。但在有些场景下，可以用来控制服务的请求速率，如双十一和12306的限流。 限流算法常见的限流算法有漏桶算法和">
+<meta name="twitter:image" content="http://clouder123.oss-cn-beijing.aliyuncs.com/leaky_bucket.GIF">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2017/07/14/接口限流之RateLimiter/">
+
+
+
+
+
+  <title>接口限流之RateLimiter | 宁静致远</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">宁静致远</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">波起潮落守浮沉</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/07/14/接口限流之RateLimiter/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Zhu Sheng">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="宁静致远">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">接口限流之RateLimiter</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-07-14T21:03:18+08:00">
+                2017-07-14
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing">
+                  <a href="/categories/java/" itemprop="url" rel="index">
+                    <span itemprop="name">java</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="描述"><a href="#描述" class="headerlink" title="描述"></a>描述</h2><p>对于高并发的系统而言，缓存、限流和降级是保证服务可用的三大利器。由于缓存的性能越来越高，对于系统能抗住高并发流量的作用自然不必多说；熔断和降级是保证服务可用的最后一道屏障，它是在下游服务故障或者系统负荷过高时不得不做的处理，通过一些mock的处理让服务暂时看起来可用，待高峰过后重新恢复。但在有些场景下，可以用来控制服务的请求速率，如双十一和12306的限流。</p>
+<h2 id="限流算法"><a href="#限流算法" class="headerlink" title="限流算法"></a>限流算法</h2><p>常见的限流算法有漏桶算法和令牌桶算法。</p>
+<p><img src="http://clouder123.oss-cn-beijing.aliyuncs.com/leaky_bucket.GIF" alt=""></p>
+<p>上图可以直观的表现出漏桶算法的思想，请求可以看成水流，以一定速率的出水进入漏桶中，然后漏桶以一定的速率出水，当水流入速度过大会溢出，漏桶算法会强行限制数据的传输速率。突发流量会被限制成一个稳定的流量，如果漏桶溢出，那么数据包或者请求就会被丢弃。漏桶算法的缺陷是不能有效利用系统资源，即使不存在资源冲突，漏桶仍然已恒定的速率流出，故不能应对突发特性的流量。</p>
+<p>令牌桶算法的原理是系统已恒定的速率往桶内放入令牌，请求过来需要先从桶内取得令牌然后请求被处理，如果没取到则拒绝服务。假设限制速率2r/s即一秒2个往桶中放入令牌，桶的容量为n,当一个a个字节的数据包到达时，将从桶中删除a个令牌，如果当前桶的令牌数小于a，则本次请求被限流；令牌桶的一个优点在于可以按需改变放入令牌的速率来应对突发性的流量。<br><img src="http://clouder123.oss-cn-beijing.aliyuncs.com/token_bucket.JPG" alt=""></p>
+<h2 id="RateLimiter"><a href="#RateLimiter" class="headerlink" title="RateLimiter"></a>RateLimiter</h2><p>RateLimiter出自大名鼎鼎的guava包，它是令牌桶算法的一种实现。RateLimiter经常用于限制对一些物理资源或者逻辑资源的访问速率。与Semaphore 相比，Semaphore 限制了并发访问的数量而不是使用速率。<br>考虑下面的场景：我们需要执行一堆任务，但我们希望任务的提交速率限制在最多1s一个。我们利用RateLimiter来实现。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">final RateLimiter rateLimiter = RateLimiter.create(1);</span><br><span class="line">Executor threadPool = Excutors.newFixedThreadPool(10);    </span><br><span class="line"> void submitTasks(List tasks) &#123;</span><br><span class="line">        for (Runnable task : tasks) &#123;</span><br><span class="line">            rateLimiter.acquire(); // 需要等待拿到令牌</span><br><span class="line">            executor.execute(task);</span><br><span class="line">        &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>下面再来考虑一个抢购的场景对接口进行限流</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">@Controller</span><br><span class="line">public class ActivityController &#123;</span><br><span class="line">    @Resource</span><br><span class="line">    private GoodService goodService;</span><br><span class="line">    RateLimiter rateLimiter = RateLimiter.create(10);</span><br><span class="line">    @RequestMapping(&quot;/rush&quot;)</span><br><span class="line">    public Object rush(HttpServletRequest request) &#123;</span><br><span class="line">        rateLimiter.acquire();</span><br><span class="line">        if (goodService.update(object) &gt; 0) &#123;</span><br><span class="line">            return &quot;success&quot;;</span><br><span class="line">        &#125;</span><br><span class="line">        return &quot;fail&quot;;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>RateLimiter用法十分简单，它主要提供了下面方法</p>
+<ul>
+<li>acquire() 从RateLimiter获取一个许可，该方法会被阻塞直到获取到请求并返回等待时间。</li>
+<li>acquire(int permits) 提供一个入参指定许可数。</li>
+<li>create(double permitsPerSecond) 指定每秒多少许可创建RateLimiter。</li>
+<li>setRate(double permitsPerSecond) 根据许可产生速率。</li>
+<li>tryAcquire()/tryAcquire(int permits) 获取许可（指定许可数),非阻塞立即返回，无法获取返回false。</li>
+</ul>
+<p>上面列出RateLimiter的几个重要的方法，了解了令牌桶的原理很容易理解成RateLimiter起了一个线程以一个固定的速率给一个计数器比如AtomicInteger加数字，可是真的是这样吗？我们移步代码。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">public static RateLimiter create(double permitsPerSecond) &#123;</span><br><span class="line">        return create(RateLimiter.SleepingTicker.SYSTEM_TICKER, permitsPerSecond);</span><br><span class="line">    &#125;</span><br><span class="line">    @VisibleForTesting</span><br><span class="line">    static RateLimiter create(RateLimiter.SleepingTicker ticker, double permitsPerSecond) &#123;</span><br><span class="line">        RateLimiter rateLimiter = new RateLimiter.Bursty(ticker, 1.0D);</span><br><span class="line">        rateLimiter.setRate(permitsPerSecond);</span><br><span class="line">        return rateLimiter;</span><br><span class="line">    &#125;    &#125;</span><br></pre></td></tr></table></figure>
+<p>create方法没什么好说，创建一个RateLimiter,关于这里面的SleepingTicker的作用我们稍后再说。先来看一下acquire方法.</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">public double acquire(int permits) &#123;</span><br><span class="line">        checkPermits(permits);  //参数校验</span><br><span class="line">        Object var4 = this.mutex;</span><br><span class="line">        long microsToWait;</span><br><span class="line">        synchronized(this.mutex) &#123;</span><br><span class="line">        //计算请求需要让线程等待多少时间</span><br><span class="line">            microsToWait = this.reserveNextTicket((double)permits, this.readSafeMicros());</span><br><span class="line">        &#125;</span><br><span class="line"> this.ticker.sleepMicrosUninterruptibly(microsToWait);//阻塞线程</span><br><span class="line">        return 1.0D * (double)microsToWait / (double)TimeUnit.SECONDS.toMicros(1L);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>下面计算线程的等待时间</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">private long reserveNextTicket(double requiredPermits, long nowMicros) &#123;</span><br><span class="line">        this.resync(nowMicros);  //重新设置下一次获取时间和存储的令牌数</span><br><span class="line">        long microsToNextFreeTicket = this.nextFreeTicketMicros - nowMicros; //需要等待的时间</span><br><span class="line">        double storedPermitsToSpend = Math.min(requiredPermits, this.storedPermits);//获得请求的令牌数和存储的令牌数中的较小值</span><br><span class="line">        double freshPermits = requiredPermits - storedPermitsToSpend;  //如果为0 表示本次请求令牌够用,大于0表示“欠”的令牌数</span><br><span class="line">        long waitMicros = this.storedPermitsToWaitTime(this.storedPermits, storedPermitsToSpend) + (long)(freshPermits * this.stableIntervalMicros);  //计算欠的令牌数需要多久产生</span><br><span class="line">        this.nextFreeTicketMicros += waitMicros;  //下次获取的时间</span><br><span class="line">    this.storedPermits -= storedPermitsToSpend; //更新令牌数</span><br><span class="line">        return microsToNextFreeTicket;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    ...</span><br><span class="line">    </span><br><span class="line">private void resync(long nowMicros) &#123;</span><br><span class="line">        if(nowMicros &gt; this.nextFreeTicketMicros) &#123;</span><br><span class="line">            this.storedPermits = Math.min(this.maxPermits, this.storedPermits + (double)(nowMicros - this.nextFreeTicketMicros) / this.stableIntervalMicros);</span><br><span class="line">            this.nextFreeTicketMicros = nowMicros;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>resync的方法作用是设置nextFreeTicketMicros和storedPermits；nextFreeTicketMicros表示下次获取的时间，初始化为0。每调用一次acquire()，nowMicros - nextFreeTicketMicros就是上次请求到这次请求中间发生的时间。如果当前时间比上一轮设置的下次获取的时间大（因为存在提前获取的情况，比如上次直接获取了10个，那上轮设置的nextFreeTicketMicros就是上一轮的时间+5s），那就计算这个中间理论上能生成多少的令牌。比如这中间隔了1秒钟，然后stableIntervalMicros=5000（稳定生成速度的情况下）,那么，就这中间就可以生成2个令牌。再加上它原先存储的storedPermits个，如果比maxPermits大，那最大也只能存maxPermits这么多。如果比maxPermits小，那就是storedPermits=原先存的+这中间生成的数量。同时记录下下次获取的时候需要减去的时间，也就是当前时间 （nextFreeTicketMicros ）。</p>
+<p>reserveNextTicket方法计算出的时间也是请求需要等待的时间。举个例子，假设在nowMicros=3这个时间点来了一个请求，需要5个令牌，当前时间点令牌数为2，假设计算出waitMicro=3,则nexFreeTicketMicors=3,当前storedPermits=-2;该请求需要等待3s后的一致性。再假设过了1s另一请求到来需要1个令牌，则根据nexFreeTicketMicors和storedPermits继续计算waitMicro获取阻塞时间。</p>
+<p>总结起来，RateLimiter并不是真的一直往某个地方放令牌，而是在每次acquire时候根据当前令牌数和下次获取令牌算去本次请求是否能执行，如果要等需要等待多长时间，设计上非常巧妙。当第一次调用accquire()的时候，resync会被执行，然后在accquire()中将nextFreeTicketMicros设置为当前时间。但是，还可以请求的令牌数和当前存储的令牌数进行比较。如果请求的令牌数很大，则会计算出生成这些多余的令牌需要的时间，并加在nextFreeTicketMicros上，从而保证下次调用accquire()的时候，根据nextFreeTicketMicros和当时的nowMicros相减，若&gt;0，则需要等到对应的时间。也就能应对流量的突增情况了。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/java/" rel="tag"># java</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/07/01/jvm源码分析之内存分配-1/" rel="next" title="jvm源码分析之内存分配">
+                <i class="fa fa-chevron-left"></i> jvm源码分析之内存分配
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/07/23/阻塞队列blockingQueue分析/" rel="prev" title="阻塞队列blockingQueue分析">
+                阻塞队列blockingQueue分析 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">Zhu Sheng</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">26</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#描述"><span class="nav-number">1.</span> <span class="nav-text">描述</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#限流算法"><span class="nav-number">2.</span> <span class="nav-text">限流算法</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#RateLimiter"><span class="nav-number">3.</span> <span class="nav-text">RateLimiter</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Zhu Sheng</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

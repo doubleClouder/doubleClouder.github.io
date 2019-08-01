@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css">
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="kafka,">
+
+
+
+
+
+
+
+
+
+
+<meta name="description" content="前言自kafka 0.8.2版本以后，kafka团队发布了新的java版本的client api以替代之前的scala版本的api。我们对kafka client端的分析都是建立在java版本的api基础之上。博主分析的kafka版本是0.11.0。 Producer异步发送0.8.2之前的scala客户端版本分别实现同步发送和异步发送两种方式。而在0.8.2之后的java版本中同步发送实际上也是">
+<meta name="keywords" content="kafka">
+<meta property="og:type" content="article">
+<meta property="og:title" content="kafka学习笔记（二）- KafkaProducer分析">
+<meta property="og:url" content="http://yoursite.com/2017/11/20/kafka学习笔记（二）-KafkaProducer分析/index.html">
+<meta property="og:site_name" content="宁静致远">
+<meta property="og:description" content="前言自kafka 0.8.2版本以后，kafka团队发布了新的java版本的client api以替代之前的scala版本的api。我们对kafka client端的分析都是建立在java版本的api基础之上。博主分析的kafka版本是0.11.0。 Producer异步发送0.8.2之前的scala客户端版本分别实现同步发送和异步发送两种方式。而在0.8.2之后的java版本中同步发送实际上也是">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/kafka_producer.png">
+<meta property="og:updated_time" content="2019-07-29T07:39:41.017Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="kafka学习笔记（二）- KafkaProducer分析">
+<meta name="twitter:description" content="前言自kafka 0.8.2版本以后，kafka团队发布了新的java版本的client api以替代之前的scala版本的api。我们对kafka client端的分析都是建立在java版本的api基础之上。博主分析的kafka版本是0.11.0。 Producer异步发送0.8.2之前的scala客户端版本分别实现同步发送和异步发送两种方式。而在0.8.2之后的java版本中同步发送实际上也是">
+<meta name="twitter:image" content="https://clouder123.oss-cn-beijing.aliyuncs.com/kafka_producer.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2017/11/20/kafka学习笔记（二）-KafkaProducer分析/">
+
+
+
+
+
+  <title>kafka学习笔记（二）- KafkaProducer分析 | 宁静致远</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">宁静致远</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <p class="site-subtitle">波起潮落守浮沉</p>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br>
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-tags">
+          <a href="/tags/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>
+            
+            Tags
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br>
+            
+            Categories
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+    </ul>
+  
+
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/11/20/kafka学习笔记（二）-KafkaProducer分析/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Zhu Sheng">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="宁静致远">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">kafka学习笔记（二）- KafkaProducer分析</h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2017-11-20T16:22:20+08:00">
+                2017-11-20
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>自kafka 0.8.2版本以后，kafka团队发布了新的java版本的client api以替代之前的scala版本的api。我们对kafka client端的分析都是建立在java版本的api基础之上。博主分析的kafka版本是0.11.0。</p>
+<h2 id="Producer异步发送"><a href="#Producer异步发送" class="headerlink" title="Producer异步发送"></a>Producer异步发送</h2><p>0.8.2之前的scala客户端版本分别实现同步发送和异步发送两种方式。而在0.8.2之后的java版本中同步发送实际上也是通过异步发送间接实现的。</p>
+<p>异步发送实际上就是在客户端维护一个消息缓冲区，producer发送消息的时候先将消息保存到消息缓冲区，然后后台发送线程会批量将消息缓冲区的消息发送到broker。</p>
+<p><img src="https://clouder123.oss-cn-beijing.aliyuncs.com/kafka_producer.png" alt=""><br>上图我们可以看出kafkaProducer在需要进行消息发送的时候，先把消息放到本地队列，然后由IO线程Sender取出队列的消息，异步的将消息发送给kafka broker。这里的sender其实还干了另外一件事，就是从broker获取meta信息，metaData就是broker,topic和partition之间的映射关系,每一个topic下partion有哪些；partion在broker上是如何分布的；partion的的leader和follwer信息。</p>
+<p>从上面的producer的异布发送模型可以看出Sender每次从broker获取meta信息都会写到metaData中，然后kafkaProducer从metaData中获取这些信息，下面我们通过代码来看下metaData的结构。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line">public final class Metadata &#123;</span><br><span class="line">    private static final Logger log = LoggerFactory.getLogger(Metadata.class);</span><br><span class="line">    public static final long TOPIC_EXPIRY_MS = 5 * 60 * 1000;</span><br><span class="line">    private static final long TOPIC_EXPIRY_NEEDS_UPDATE = -1L;</span><br><span class="line">    //更新失败，下一次更新的时间</span><br><span class="line">    private final long refreshBackoffMs;</span><br><span class="line">    //过期时间，也即每隔多久需要更新一次。默认10分钟</span><br><span class="line">    private final long metadataExpireMs;</span><br><span class="line">    //成功更新，版本号递增</span><br><span class="line">    private int version;</span><br><span class="line">    //上一次更新时间</span><br><span class="line">    private long lastRefreshMs;</span><br><span class="line">    //上一次成功更新时间</span><br><span class="line">    private long lastSuccessfulRefreshMs;</span><br><span class="line">    //集群信息</span><br><span class="line">    private Cluster cluster;</span><br><span class="line">    private boolean needUpdate;</span><br><span class="line">    /* Topics with expiry time */</span><br><span class="line">    private final Map&lt;String, Long&gt; topics;</span><br><span class="line">    private final List&lt;Listener&gt; listeners;</span><br><span class="line">    private final ClusterResourceListeners clusterResourceListeners;</span><br><span class="line">    private boolean needMetadataForAllTopics;</span><br><span class="line">    private final boolean allowAutoTopicCreation;</span><br><span class="line">    private final boolean topicExpiryEnabled;</span><br><span class="line">    public Metadata(long refreshBackoffMs, long metadataExpireMs, boolean allowAutoTopicCreation) &#123;</span><br><span class="line">        this(refreshBackoffMs, metadataExpireMs, allowAutoTopicCreation, false, new ClusterResourceListeners());</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>MetaData中包含一些metaData本身操作信息和集群信息Cluster。cluster中真正维护着上面所说的boker与topic/partition的映射关系。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">public final class Cluster &#123;</span><br><span class="line">    private final boolean isBootstrapConfigured;</span><br><span class="line">    private final List&lt;Node&gt; nodes;</span><br><span class="line">    private final Set&lt;String&gt; unauthorizedTopics;</span><br><span class="line">    private final Set&lt;String&gt; internalTopics;</span><br><span class="line">    private final Node controller;</span><br><span class="line">    private final Map&lt;TopicPartition, PartitionInfo&gt; partitionsByTopicPartition;</span><br><span class="line">    private final Map&lt;String, List&lt;PartitionInfo&gt;&gt; partitionsByTopic;</span><br><span class="line">    private final Map&lt;String, List&lt;PartitionInfo&gt;&gt; availablePartitionsByTopic;</span><br><span class="line">    private final Map&lt;Integer, List&lt;PartitionInfo&gt;&gt; partitionsByNode;</span><br><span class="line">    private final Map&lt;Integer, Node&gt; nodesById;</span><br><span class="line">    private final ClusterResource clusterResource;</span><br></pre></td></tr></table></figure>
+<p>在MetaData中，所有的公共方法都是synchronized的，metaData的操作是同步的，所以在多个producer thread读，sender线程写的情况下不会出现线程安全问题。</p>
+<p>清楚metaData的结构之后，我们继续看下Sender是什么，Sender是一个IO线程，负责与broker交互，那么它是何时创建的呢。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line">@SuppressWarnings(&#123;&quot;unchecked&quot;, &quot;deprecation&quot;&#125;)</span><br><span class="line">    private KafkaProducer(ProducerConfig config, Serializer&lt;K&gt; keySerializer, Serializer&lt;V&gt; valueSerializer) &#123;</span><br><span class="line">        try &#123;</span><br><span class="line">            log.trace(&quot;Starting the Kafka producer&quot;);</span><br><span class="line">            </span><br><span class="line">  ····</span><br><span class="line">                       this.metadata.update(Cluster.bootstrap(addresses), Collections.&lt;String&gt;emptySet(), time.milliseconds());</span><br><span class="line">            ChannelBuilder channelBuilder = ClientUtils.createChannelBuilder(config);</span><br><span class="line">            Sensor throttleTimeSensor = Sender.throttleTimeSensor(metrics);</span><br><span class="line">            NetworkClient client = new NetworkClient(</span><br><span class="line">                    new Selector(config.getLong(ProducerConfig.CONNECTIONS_MAX_IDLE_MS_CONFIG),</span><br><span class="line">                            this.metrics, time, &quot;producer&quot;, channelBuilder),</span><br><span class="line">                    this.metadata,</span><br><span class="line">                    clientId,</span><br><span class="line">                    maxInflightRequests,</span><br><span class="line">                    config.getLong(ProducerConfig.RECONNECT_BACKOFF_MS_CONFIG),</span><br><span class="line">                    config.getLong(ProducerConfig.RECONNECT_BACKOFF_MAX_MS_CONFIG),</span><br><span class="line">                    config.getInt(ProducerConfig.SEND_BUFFER_CONFIG),</span><br><span class="line">                    config.getInt(ProducerConfig.RECEIVE_BUFFER_CONFIG),</span><br><span class="line">                    this.requestTimeoutMs,</span><br><span class="line">                    time,</span><br><span class="line">                    true,</span><br><span class="line">                    apiVersions,</span><br><span class="line">                    throttleTimeSensor);</span><br><span class="line">            this.sender = new Sender(client,</span><br><span class="line">                    this.metadata,</span><br><span class="line">                    this.accumulator,</span><br><span class="line">                    maxInflightRequests == 1,</span><br><span class="line">                    config.getInt(ProducerConfig.MAX_REQUEST_SIZE_CONFIG),</span><br><span class="line">                    acks,</span><br><span class="line">                    retries,</span><br><span class="line">                    this.metrics,</span><br><span class="line">                    Time.SYSTEM,</span><br><span class="line">                    this.requestTimeoutMs,</span><br><span class="line">                    config.getLong(ProducerConfig.RETRY_BACKOFF_MS_CONFIG),</span><br><span class="line">                    this.transactionManager,</span><br><span class="line">                    apiVersions);</span><br><span class="line">            String ioThreadName = &quot;kafka-producer-network-thread&quot; + (clientId.length() &gt; 0 ? &quot; | &quot; + clientId : &quot;&quot;);</span><br><span class="line">            this.ioThread = new KafkaThread(ioThreadName, this.sender, true);</span><br><span class="line">            this.ioThread.start();</span><br><span class="line">            this.errors = this.metrics.sensor(&quot;errors&quot;);</span><br><span class="line">            config.logUnused();</span><br><span class="line">            AppInfoParser.registerAppInfo(JMX_PREFIX, clientId);</span><br><span class="line">            log.debug(&quot;Kafka producer started&quot;);</span><br><span class="line">        &#125; catch (Throwable t) &#123;</span><br><span class="line">            // call close methods if internal objects are already constructed this is to prevent resource leak. see KAFKA-2121</span><br><span class="line">            close(0, TimeUnit.MILLISECONDS, true);</span><br><span class="line">            // now propagate the exception</span><br><span class="line">            throw new KafkaException(&quot;Failed to construct kafka producer&quot;, t);</span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>kafkaProducer的初始化过程是一些序列化规则，压缩类型，监控等基础配置的生成以及sender线程的创建，我们继续看下sender线程具体的动作。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">void run(long now) &#123;</span><br><span class="line">        if (transactionManager != null) &#123;</span><br><span class="line">            if (!transactionManager.isTransactional()) &#123;</span><br><span class="line">                // this is an idempotent producer, so make sure we have a producer id</span><br><span class="line">                maybeWaitForProducerId();</span><br><span class="line">            &#125; else if (transactionManager.hasInFlightRequest() || maybeSendTransactionalRequest(now)) &#123;</span><br><span class="line">                // as long as there are outstanding transactional requests, we simply wait for them to return</span><br><span class="line">                client.poll(retryBackoffMs, now);</span><br><span class="line">                return;</span><br><span class="line">            &#125;</span><br><span class="line">            ...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>在sender run方法中我们关注client.poll()这一行，前面transactionManager跟事务性producer相关，这里我们不关注。<br>client.poll()是调的NetworkClient的poll()方法，这是kafka客户端网络通信的的封装，封装了NIO操作。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line">@Override</span><br><span class="line">    public List&lt;ClientResponse&gt; poll(long timeout, long now) &#123;</span><br><span class="line">        if (!abortedSends.isEmpty()) &#123;</span><br><span class="line">            // If there are aborted sends because of unsupported version exceptions or disconnects,</span><br><span class="line">            // handle them immediately without waiting for Selector#poll.</span><br><span class="line">            List&lt;ClientResponse&gt; responses = new ArrayList&lt;&gt;();</span><br><span class="line">            handleAbortedSends(responses);</span><br><span class="line">            completeResponses(responses);</span><br><span class="line">            return responses;</span><br><span class="line">        &#125;</span><br><span class="line">        long metadataTimeout = metadataUpdater.maybeUpdate(now);</span><br><span class="line">        try &#123;</span><br><span class="line">            this.selector.poll(Utils.min(timeout, metadataTimeout, requestTimeoutMs));</span><br><span class="line">        &#125; catch (IOException e) &#123;</span><br><span class="line">            log.error(&quot;Unexpected error during I/O&quot;, e);</span><br><span class="line">        &#125;</span><br><span class="line">        // process completed actions</span><br><span class="line">        long updatedNow = this.time.milliseconds();</span><br><span class="line">        List&lt;ClientResponse&gt; responses = new ArrayList&lt;&gt;();</span><br><span class="line">        handleCompletedSends(responses, updatedNow);</span><br><span class="line">        //更新metaData</span><br><span class="line">        handleCompletedReceives(responses, updatedNow);</span><br><span class="line">        handleDisconnections(responses, updatedNow);</span><br><span class="line">        handleConnections();</span><br><span class="line">        handleInitiateApiVersionRequests(updatedNow);</span><br><span class="line">        handleTimedOutRequests(responses, updatedNow);</span><br><span class="line">        completeResponses(responses);</span><br><span class="line">        return responses;</span><br><span class="line">    &#125;</span><br><span class="line"> &#125;</span><br></pre></td></tr></table></figure>
+<p>handleCompletedReceives()是对broker response的处理handler</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">private void handleCompletedReceives(List&lt;ClientResponse&gt; responses, long now) &#123;</span><br><span class="line">        for (NetworkReceive receive : this.selector.completedReceives()) &#123;</span><br><span class="line">            String source = receive.source();</span><br><span class="line">            InFlightRequest req = inFlightRequests.completeNext(source);</span><br><span class="line">            Struct responseStruct = parseStructMaybeUpdateThrottleTimeMetrics(receive.payload(), req.header,</span><br><span class="line">                throttleTimeSensor, now);</span><br><span class="line">            if (log.isTraceEnabled()) &#123;</span><br><span class="line">                log.trace(&quot;Completed receive from node &#123;&#125;, for key &#123;&#125;, received &#123;&#125;&quot;, req.destination,</span><br><span class="line">                    req.header.apiKey(), responseStruct.toString());</span><br><span class="line">            &#125;</span><br><span class="line">            AbstractResponse body = createResponse(responseStruct, req.header);</span><br><span class="line">            if (req.isInternalRequest &amp;&amp; body instanceof MetadataResponse)</span><br><span class="line">                metadataUpdater.handleCompletedMetadataResponse(req.header, now, (MetadataResponse) body);</span><br><span class="line">            else if (req.isInternalRequest &amp;&amp; body instanceof ApiVersionsResponse)</span><br><span class="line">                handleApiVersionsResponse(responses, req, now, (ApiVersionsResponse) body);</span><br><span class="line">            else</span><br><span class="line">                responses.add(req.completed(body, now));</span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里我们关注metadataResponse的处理</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line">@Override</span><br><span class="line">        public void handleCompletedMetadataResponse(RequestHeader requestHeader, long now, MetadataResponse response) &#123;</span><br><span class="line">            this.metadataFetchInProgress = false;</span><br><span class="line">            Cluster cluster = response.cluster();</span><br><span class="line">            // check if any topics metadata failed to get updated</span><br><span class="line">            Map&lt;String, Errors&gt; errors = response.errors();</span><br><span class="line">            if (!errors.isEmpty())</span><br><span class="line">                log.warn(&quot;Error while fetching metadata with correlation id &#123;&#125; : &#123;&#125;&quot;, requestHeader.correlationId(), errors);</span><br><span class="line">            // don&apos;t update the cluster if there are no valid nodes...the topic we want may still be in the process of being</span><br><span class="line">            // created which means we will get errors and no nodes until it exists</span><br><span class="line">            if (cluster.nodes().size() &gt; 0) &#123;</span><br><span class="line">                this.metadata.update(cluster, response.unavailableTopics(), now);</span><br><span class="line">            &#125; else &#123;</span><br><span class="line">                log.trace(&quot;Ignoring empty metadata response with correlation id &#123;&#125;.&quot;, requestHeader.correlationId());</span><br><span class="line">                this.metadata.failedUpdate(now);</span><br><span class="line">            &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里真正执行Metadata的更新</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line">public synchronized void update(Cluster cluster, Set&lt;String&gt; unavailableTopics, long now) &#123;</span><br><span class="line">        Objects.requireNonNull(cluster, &quot;cluster should not be null&quot;);</span><br><span class="line">        this.needUpdate = false;</span><br><span class="line">        this.lastRefreshMs = now;</span><br><span class="line">        this.lastSuccessfulRefreshMs = now;</span><br><span class="line">        this.version += 1;</span><br><span class="line">        if (topicExpiryEnabled) &#123;</span><br><span class="line">            // Handle expiry of topics from the metadata refresh set.</span><br><span class="line">            for (Iterator&lt;Map.Entry&lt;String, Long&gt;&gt; it = topics.entrySet().iterator(); it.hasNext(); ) &#123;</span><br><span class="line">                Map.Entry&lt;String, Long&gt; entry = it.next();</span><br><span class="line">                long expireMs = entry.getValue();</span><br><span class="line">                if (expireMs == TOPIC_EXPIRY_NEEDS_UPDATE)</span><br><span class="line">                    entry.setValue(now + TOPIC_EXPIRY_MS);</span><br><span class="line">                else if (expireMs &lt;= now) &#123;</span><br><span class="line">                    it.remove();</span><br><span class="line">                    log.debug(&quot;Removing unused topic &#123;&#125; from the metadata list, expiryMs &#123;&#125; now &#123;&#125;&quot;, entry.getKey(), expireMs, now);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        for (Listener listener: listeners)</span><br><span class="line">            listener.onMetadataUpdate(cluster, unavailableTopics);</span><br><span class="line">        String previousClusterId = cluster.clusterResource().clusterId();</span><br><span class="line">        if (this.needMetadataForAllTopics) &#123;</span><br><span class="line">            // the listener may change the interested topics, which could cause another metadata refresh.</span><br><span class="line">            // If we have already fetched all topics, however, another fetch should be unnecessary.</span><br><span class="line">            this.needUpdate = false;</span><br><span class="line">            this.cluster = getClusterForCurrentTopics(cluster);</span><br><span class="line">        &#125; else &#123;</span><br><span class="line">            this.cluster = cluster;</span><br><span class="line">        &#125;</span><br><span class="line">        // The bootstrap cluster is guaranteed not to have any useful information</span><br><span class="line">        if (!cluster.isBootstrapConfigured()) &#123;</span><br><span class="line">            String clusterId = cluster.clusterResource().clusterId();</span><br><span class="line">            if (clusterId == null ? previousClusterId != null : !clusterId.equals(previousClusterId))</span><br><span class="line">                log.info(&quot;Cluster ID: &#123;&#125;&quot;, cluster.clusterResource().clusterId());</span><br><span class="line">            clusterResourceListeners.onUpdate(cluster.clusterResource());</span><br><span class="line">        &#125;</span><br><span class="line">        notifyAll();</span><br><span class="line">        log.debug(&quot;Updated cluster metadata version &#123;&#125; to &#123;&#125;&quot;, this.version, this.cluster);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>上面就是metadata的更新逻辑，实际上kafka实现了两种metadata的更新规则，可以通过producerConfig配置项来完成：</p>
+<ul>
+<li><p>周期性的更新: 每隔一段时间更新一次，这个通过 Metadata的lastRefreshMs, lastSuccessfulRefreshMs 这2个字段来实现<br>配置项为metadata.max.age.ms //缺省300000，即10分钟1次</p>
+</li>
+<li><p>失效检测，强制更新：检查到metadata失效以后，调用metadata.requestUpdate()强制更新。 requestUpdate()函数里面其实什么都没做，就是把needUpdate置成了false。每次poll的时候，都检查这2种更新机制，达到了，就触发更新。</p>
+</li>
+</ul>
+<p>kafkaProducer中调用metadata.requestUpdate()的地方就是主动把metadata主动置为失效。分析以下场景会有此做法：</p>
+<ul>
+<li>与broker连接初始化的时候</li>
+<li>poll数据的时候，连接断了</li>
+<li>请求超时</li>
+<li>消息发送时，有partition的leader没找到</li>
+<li>返回的response和请求对不上的时候</li>
+</ul>
+<p>总之数据不能正常发送或者数据不同步时都认为metadata有问题，需要更新。<br>还有一点注意的是：更新的时候，是从metadata保存的所有Node，或者说Broker中，选负载最小的那个，也就是当前接收请求最少的那个。向其发送MetadataRequest请求，获取新的Cluster对象。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/kafka/" rel="tag"># kafka</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/11/19/kafka学习笔记（一）kafka简介/" rel="next" title="kafka学习笔记（一）kafka简介">
+                <i class="fa fa-chevron-left"></i> kafka学习笔记（一）kafka简介
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/11/30/kafka学习笔记（三）-kafkaProducer-NIO模型/" rel="prev" title="kafka学习笔记（三）-kafkaProducer NIO模型">
+                kafka学习笔记（三）-kafkaProducer NIO模型 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">Zhu Sheng</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">26</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                <a href="/categories/index.html">
+                  <span class="site-state-item-count">5</span>
+                  <span class="site-state-item-name">categories</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                <a href="/tags/index.html">
+                  <span class="site-state-item-count">6</span>
+                  <span class="site-state-item-name">tags</span>
+                </a>
+              </div>
+            
+
+          </nav>
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Producer异步发送"><span class="nav-number">2.</span> <span class="nav-text">Producer异步发送</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Zhu Sheng</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Gemini</a> v5.1.4</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=5.1.4"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
